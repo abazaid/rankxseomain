@@ -87,15 +87,18 @@ final class OpenAIClient
         $currentDescription = trim(strip_tags((string) ($product['description'] ?? '')));
         $currentMetadataTitle = trim((string) ($product['metadata']['title'] ?? ''));
         $currentMetadataDescription = trim((string) ($product['metadata']['description'] ?? ''));
+        $currentSeoSlug = trim((string) ($product['seo_slug'] ?? ''));
 
         $description = trim((string) ($decoded['description'] ?? ''));
         $metadataTitle = trim((string) ($decoded['metadata_title'] ?? ''));
         $metadataDescription = trim((string) ($decoded['metadata_description'] ?? ''));
+        $seoSlug = $this->buildSeoSlug((string) ($decoded['seo_slug'] ?? ($product['name'] ?? '')));
 
         if ($mode === 'description') {
             $description = $this->ensureHtmlDescription($description);
             $metadataTitle = $currentMetadataTitle;
             $metadataDescription = $currentMetadataDescription;
+            $seoSlug = $currentSeoSlug !== '' ? $this->buildSeoSlug($currentSeoSlug) : $seoSlug;
         } elseif ($mode === 'seo') {
             $description = $currentDescription;
         } else {
@@ -108,6 +111,7 @@ final class OpenAIClient
             'description' => $description,
             'metadata_title' => $metadataTitle,
             'metadata_description' => $metadataDescription,
+            'seo_slug' => $seoSlug,
             '_usage' => $usage,
             '_model' => $model,
         ];
@@ -338,6 +342,7 @@ final class OpenAIClient
         $brandSeoInstructions = trim((string) ($settings['brand_seo_instructions'] ?? ''));
         $metaTitleInstructions = trim((string) ($settings['meta_title_instructions'] ?? ''));
         $metaDescriptionInstructions = trim((string) ($settings['meta_description_instructions'] ?? ''));
+        $seoPageUrlInstructions = trim((string) ($settings['seo_page_url_instructions'] ?? ''));
         $businessContextBlock = $this->buildBusinessContextBlock($settings);
 
         $response = $this->httpClient->post(self::API_BASE . '/responses', [
@@ -371,7 +376,7 @@ Rules:
 - Write meta_description (max 160 characters)
 - Write a SHORT plain-text brand description (no HTML tags, no headings, no markdown, max 255 characters)
 - Include value proposition and relevance to the brand keyword
-- Generate SEO slug from brand name (clean URL-friendly, lowercase, hyphen-separated, no spaces)
+- Generate SEO slug from brand name only (no extra words), lowercase, hyphen-separated, URL-safe, max 90 chars
 - Target Saudi Arabian market
 - Use natural Arabic
 - Keep content strictly relevant to the merchant business profile and brand keyword (no generic filler)
@@ -380,6 +385,7 @@ Rules:
                                 . $this->buildInstructionBlock('Merchant business profile', $businessContextBlock)
                                 . $this->buildInstructionBlock('Meta Title rules', $metaTitleInstructions)
                                 . $this->buildInstructionBlock('Meta Description rules', $metaDescriptionInstructions)
+                                . $this->buildInstructionBlock('SEO Page URL rules', $seoPageUrlInstructions)
                                 . $this->buildInstructionBlock('Brand SEO instructions', $brandSeoInstructions)
                                 . "\nReturn ONLY JSON: {\"meta_title\": \"...\", \"meta_description\": \"...\", \"description\": \"...\", \"seo_slug\": \"...\"}",
                         ],
@@ -444,6 +450,7 @@ Rules:
         $categorySeoInstructions = trim((string) ($settings['category_seo_instructions'] ?? ''));
         $metaTitleInstructions = trim((string) ($settings['meta_title_instructions'] ?? ''));
         $metaDescriptionInstructions = trim((string) ($settings['meta_description_instructions'] ?? ''));
+        $seoPageUrlInstructions = trim((string) ($settings['seo_page_url_instructions'] ?? ''));
         $businessContextBlock = $this->buildBusinessContextBlock($settings);
 
         $response = $this->httpClient->post(self::API_BASE . '/responses', [
@@ -476,7 +483,7 @@ Category Information:
 Rules:
 - Write compelling meta_title (max 60 characters)
 - Write meta_description (max 160 characters)
-- Generate SEO slug from category name (clean URL-friendly, lowercase, hyphen-separated, no spaces)
+- Generate SEO slug from category name only (no extra words), lowercase, hyphen-separated, URL-safe, max 90 chars
 - Target Saudi Arabian market
 - Use natural Arabic
 - Focus on the category name and what products it contains
@@ -486,6 +493,7 @@ Rules:
                                 . $this->buildInstructionBlock('Merchant business profile', $businessContextBlock)
                                 . $this->buildInstructionBlock('Meta Title rules', $metaTitleInstructions)
                                 . $this->buildInstructionBlock('Meta Description rules', $metaDescriptionInstructions)
+                                . $this->buildInstructionBlock('SEO Page URL rules', $seoPageUrlInstructions)
                                 . $this->buildInstructionBlock('Category SEO instructions', $categorySeoInstructions)
                                 . "\nReturn ONLY JSON: {\"meta_title\": \"...\", \"meta_description\": \"...\", \"seo_slug\": \"...\"}",
                         ],
@@ -678,6 +686,7 @@ Return ONLY clean HTML without any labels, comments, or explanations.',
         $productInstructions = trim((string) ($settings['product_description_instructions'] ?? ''));
         $metaTitleInstructions = trim((string) ($settings['meta_title_instructions'] ?? ''));
         $metaDescriptionInstructions = trim((string) ($settings['meta_description_instructions'] ?? ''));
+        $seoPageUrlInstructions = trim((string) ($settings['seo_page_url_instructions'] ?? ''));
         $businessContextBlock = $this->buildBusinessContextBlock($settings);
 
         $productSummary = [
@@ -705,7 +714,7 @@ Return ONLY clean HTML without any labels, comments, or explanations.',
                 'content' => [
                     [
                         'type' => 'input_text',
-                        'text' => 'You are an expert ecommerce content writer for Saudi customers. Return valid JSON with EXACTLY these keys: description, metadata_title, metadata_description.
+                        'text' => 'You are an expert ecommerce content writer for Saudi customers. Return valid JSON with EXACTLY these keys: description, metadata_title, metadata_description, seo_slug.
 
 DESCRIPTION STRUCTURE (CRITICAL):
 1. Start with introduction paragraph (no heading)
@@ -732,7 +741,8 @@ MANDATORY SECTION ORDER (DO NOT SKIP):
 12. <h2>منتجات قد تهمك</h2> (with links)
 13. <h2>الأسئلة الشائعة</h2>
 
-METADATA: metadata_title (50-60 chars, start with product name), metadata_description (140-155 chars, include product name and CTA).',
+METADATA: metadata_title (50-60 chars, start with product name), metadata_description (140-155 chars, include product name and CTA).
+SEO PAGE URL: seo_slug must be generated from the product name only (no extra words), lowercase, hyphen-separated, URL-safe, supports Arabic/English mixed names, max 90 chars.',
                     ],
                 ],
             ],
@@ -748,6 +758,7 @@ METADATA: metadata_title (50-60 chars, start with product name), metadata_descri
                             . $this->buildInstructionBlock('Description Template', $productInstructions)
                             . $this->buildInstructionBlock('Meta Title Rules', $metaTitleInstructions)
                             . $this->buildInstructionBlock('Meta Description Rules', $metaDescriptionInstructions)
+                            . $this->buildInstructionBlock('SEO Page URL Rules', $seoPageUrlInstructions)
                             . "\nProduct Data:\n" . json_encode($productSummary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
                     ],
                 ],
@@ -938,16 +949,16 @@ METADATA: metadata_title (50-60 chars, start with product name), metadata_descri
             return '';
         }
 
-        $links = $this->pickRelevantSitemapLinks($product, $settings, 14);
+        $links = $this->pickRelevantSitemapLinks($product, $settings, 220);
         if ($links === []) {
             return 'If no internal links list is provided, skip internal links and continue normally.';
         }
 
         $byType = $this->groupLinksByType($links);
-        $categoryLinks = $byType['category'];
-        $brandLinks = $byType['brand'];
-        $productLinks = $byType['product'];
-        $pageLinks = $byType['page'];
+        $categoryLinks = array_slice($byType['category'], 0, 8);
+        $brandLinks = array_slice($byType['brand'], 0, 8);
+        $productLinks = array_slice($byType['product'], 0, 16);
+        $pageLinks = array_slice($byType['page'], 0, 8);
 
         $rows = [];
         foreach ($categoryLinks as $index => $link) {
@@ -1130,6 +1141,6 @@ METADATA: metadata_title (50-60 chars, start with product name), metadata_descri
         $value = preg_replace('/-+/u', '-', $value) ?? $value;
         $value = trim($value, '-');
 
-        return $this->limitText($value, 120);
+        return $this->limitText($value, 90);
     }
 }

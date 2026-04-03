@@ -11,6 +11,16 @@ use App\Support\Plans;
 
 final class SubscriptionManager
 {
+    private const MODE_COSTS = [
+        'domain_seo' => 3,
+    ];
+
+    private function getModeCost(string $mode): int
+    {
+        $cost = self::MODE_COSTS[$mode] ?? 1;
+        return max(1, (int) $cost);
+    }
+
     public function refreshPeriodIfNeeded(array $store): array
     {
         $subscription = $store['subscription'] ?? [];
@@ -47,7 +57,7 @@ final class SubscriptionManager
         return $store;
     }
 
-    public function canOptimize(array $store, string $type = 'product_description'): bool
+    public function canOptimize(array $store, string $type = 'product_description', int $cost = 1): bool
     {
         $subscription = $store['subscription'] ?? [];
         $status = (string) ($subscription['status'] ?? 'inactive');
@@ -61,6 +71,7 @@ final class SubscriptionManager
         
         $used = (int) ($subscription[$usedKey] ?? 0);
         $quota = (int) ($subscription[$quotaKey] ?? 0);
+        $cost = max(1, $cost);
 
         if ($quota <= 0) {
             $plan = Plans::get((string) ($subscription['plan_name'] ?? Plans::BUDGET_TRIAL));
@@ -69,13 +80,14 @@ final class SubscriptionManager
             }
         }
 
-        return $used < $quota;
+        return ($used + $cost) <= $quota;
     }
 
-    public function recordOptimization(array $store, int $productId, ?string $productName, string $mode = 'all', string $status = 'completed'): array
+    public function recordOptimization(array $store, int $productId, ?string $productName, string $mode = 'all', string $status = 'completed', ?int $cost = null): array
     {
         $merchantId = (string) ($store['merchant_id'] ?? '');
         $subscription = $store['subscription'] ?? [];
+        $points = $cost !== null ? max(1, $cost) : $this->getModeCost($mode);
 
         $modeToQuota = [
             'description' => ['product_description'],
@@ -93,10 +105,10 @@ final class SubscriptionManager
         $quotaTypes = $modeToQuota[$mode] ?? ['product_description'];
         foreach ($quotaTypes as $quotaType) {
             $usedKey = 'used_' . $quotaType;
-            $subscription[$usedKey] = (int) ($subscription[$usedKey] ?? 0) + 1;
+            $subscription[$usedKey] = (int) ($subscription[$usedKey] ?? 0) + $points;
         }
         
-        $subscription['used_products'] = (int) ($subscription['used_products'] ?? 0) + 1;
+        $subscription['used_products'] = (int) ($subscription['used_products'] ?? 0) + $points;
         $store['subscription'] = $subscription;
 
         $logs = $store['usage_logs'] ?? [];
@@ -105,6 +117,7 @@ final class SubscriptionManager
             'product_name' => $productName,
             'mode' => $mode,
             'status' => $status,
+            'points' => $points,
             'used_at' => date('c'),
         ];
         $store['usage_logs'] = array_slice($logs, -200);
@@ -116,7 +129,7 @@ final class SubscriptionManager
             ]);
 
             if (Database::isAvailable()) {
-                (new SaaSRepository())->incrementUsageByMerchantId((int) $merchantId);
+                (new SaaSRepository())->incrementUsageByMerchantId((int) $merchantId, $points);
             }
         }
 

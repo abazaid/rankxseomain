@@ -146,6 +146,7 @@
       'setting-product-description-instructions': settings.product_description_instructions || '',
       'setting-meta-title-instructions': settings.meta_title_instructions || '',
       'setting-meta-description-instructions': settings.meta_description_instructions || '',
+      'setting-seo-page-url-instructions': settings.seo_page_url_instructions || '',
       'setting-brand-seo-instructions': settings.brand_seo_instructions || '',
       'setting-category-seo-instructions': settings.category_seo_instructions || '',
     };
@@ -184,6 +185,7 @@
       product_description_instructions: document.getElementById('setting-product-description-instructions')?.value || '',
       meta_title_instructions: document.getElementById('setting-meta-title-instructions')?.value || '',
       meta_description_instructions: document.getElementById('setting-meta-description-instructions')?.value || '',
+      seo_page_url_instructions: document.getElementById('setting-seo-page-url-instructions')?.value || '',
       brand_seo_instructions: document.getElementById('setting-brand-seo-instructions')?.value || '',
       category_seo_instructions: document.getElementById('setting-category-seo-instructions')?.value || '',
     };
@@ -208,7 +210,7 @@
         <p style="margin:10px 0 6px;line-height:1.9;">${escapeHtml(htmlToPlainText(item.description || '').slice(0, 280))}${(htmlToPlainText(item.description || '').length > 280) ? '...' : ''}</p>
         <p style="margin:0 0 4px;"><strong>Meta Title:</strong> ${escapeHtml(item.meta_title || '-')}</p>
         <p style="margin:0;"><strong>Meta Description:</strong> ${escapeHtml(item.meta_description || '-')}</p>
-        <p style="margin:6px 0 0;"><strong>SEO Slug:</strong> ${escapeHtml(item.seo_slug || '-')}</p>
+        <p style="margin:6px 0 0;"><strong>رابط صفحة المنتج (SEO Page URL):</strong> ${escapeHtml(item.seo_slug || '-')}</p>
         <div style="margin-top:10px;">
           <button class="btn btn-secondary" type="button" data-open-generated-item="${escapeHtml(String(item.id || ''))}" data-open-generated-type="${escapeHtml(type)}">عرض ونسخ النتيجة</button>
         </div>

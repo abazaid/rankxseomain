@@ -91,6 +91,10 @@ if ($appBasePath === '/') {
             <textarea id="setting-meta-description-instructions" rows="3"></textarea>
           </div>
           <div>
+            <label><strong>رابط صفحة المنتج (SEO Page URL)</strong></label>
+            <textarea id="setting-seo-page-url-instructions" rows="3"></textarea>
+          </div>
+          <div>
             <label><strong>تعليمات سيو الماركات</strong></label>
             <textarea id="setting-brand-seo-instructions" rows="3"></textarea>
           </div>
@@ -106,7 +110,10 @@ if ($appBasePath === '/') {
       <div class="card">
         <div class="section-head">
           <div><div class="pill">سيو المنتجات</div><h2 style="margin:10px 0;">توليد سيو منتج</h2></div>
-          <button id="generate-product-btn" class="btn btn-sky" type="button">توليد</button>
+          <div class="action-with-cost">
+            <button id="generate-product-btn" class="btn btn-sky" type="button">توليد</button>
+            <span class="cost-badge" title="سيتم استهلاك 1 نقطة"><span class="cost-dot"></span>1 نقطة</span>
+          </div>
         </div>
         <div class="grid" style="margin-top:0;">
           <div><label><strong>اسم المنتج / الكلمة المفتاحية</strong></label><input id="product-keyword" type="text" placeholder="مثال: حذاء جري رجالي"></div>
@@ -125,7 +132,10 @@ if ($appBasePath === '/') {
             <h2 style="margin:10px 0;">بحث احترافي عن الكلمات المفتاحية</h2>
             <p class="muted" style="margin:0;">تحليل حجم البحث والمنافسة والنتائج الأولى واقتراحات مرتبطة.</p>
           </div>
-          <button id="keyword-search-btn" class="btn btn-sky" type="button">بحث الكلمات المفتاحية</button>
+          <div class="action-with-cost">
+            <button id="keyword-search-btn" class="btn btn-sky" type="button">بحث الكلمات المفتاحية</button>
+            <span class="cost-badge" title="سيتم استهلاك 1 نقطة"><span class="cost-dot"></span>1 نقطة</span>
+          </div>
         </div>
         <div class="grid" style="margin-top:0;">
           <div><label><strong>الكلمة المفتاحية</strong></label><input id="keyword-query" type="text" placeholder="مثال: عطور رجالية"></div>
@@ -171,7 +181,10 @@ if ($appBasePath === '/') {
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <button id="domain-seo-save-btn" class="btn btn-secondary" type="button">حفظ الدومين</button>
-            <button id="domain-seo-refresh-btn" class="btn btn-sky" type="button">تحديث البيانات</button>
+            <div class="action-with-cost">
+              <button id="domain-seo-refresh-btn" class="btn btn-sky" type="button">تحديث البيانات</button>
+              <span class="cost-badge is-expensive" title="سيتم استهلاك 3 نقاط"><span class="cost-dot"></span>3 نقاط</span>
+            </div>
           </div>
         </div>
         <div class="grid" style="margin-top:0;">
@@ -211,7 +224,10 @@ if ($appBasePath === '/') {
       <div class="card">
         <div class="section-head">
           <div><div class="pill">سيو الماركات</div><h2 style="margin:10px 0;">توليد سيو ماركة</h2></div>
-          <button id="generate-brand-btn" class="btn btn-sky" type="button">توليد</button>
+          <div class="action-with-cost">
+            <button id="generate-brand-btn" class="btn btn-sky" type="button">توليد</button>
+            <span class="cost-badge" title="سيتم استهلاك 1 نقطة"><span class="cost-dot"></span>1 نقطة</span>
+          </div>
         </div>
         <div class="grid" style="margin-top:0;">
           <div><label><strong>اسم الماركة / الكلمة المفتاحية</strong></label><input id="brand-keyword" type="text"></div>
@@ -226,7 +242,10 @@ if ($appBasePath === '/') {
       <div class="card">
         <div class="section-head">
           <div><div class="pill">سيو التصنيفات</div><h2 style="margin:10px 0;">توليد سيو تصنيف</h2></div>
-          <button id="generate-category-btn" class="btn btn-sky" type="button">توليد</button>
+          <div class="action-with-cost">
+            <button id="generate-category-btn" class="btn btn-sky" type="button">توليد</button>
+            <span class="cost-badge" title="سيتم استهلاك 1 نقطة"><span class="cost-dot"></span>1 نقطة</span>
+          </div>
         </div>
         <div class="grid" style="margin-top:0;">
           <div><label><strong>اسم التصنيف / الكلمة المفتاحية</strong></label><input id="category-keyword" type="text"></div>
@@ -292,7 +311,7 @@ if ($appBasePath === '/') {
           </div>
           <div class="card surface-soft" style="box-shadow:none;">
             <div class="section-head" style="margin-bottom:10px;">
-              <h3 style="margin:0;">SEO Slug</h3>
+              <h3 style="margin:0;">رابط صفحة المنتج (SEO Page URL)</h3>
               <button class="btn btn-secondary" type="button" data-copy-target="generated-result-seo-slug">نسخ</button>
             </div>
             <textarea id="generated-result-seo-slug" rows="3" readonly></textarea>

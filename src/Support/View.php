@@ -144,6 +144,38 @@ final class View
       box-shadow: 0 10px 24px rgba(239, 68, 68, 0.22);
     }
     .btn-danger:hover { background: #DC2626; }
+    .action-with-cost {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .cost-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: #EEF2FF;
+      color: #3730A3;
+      border: 1px solid #C7D2FE;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .cost-badge.is-expensive {
+      background: #FEF3C7;
+      border-color: #FCD34D;
+      color: #92400E;
+    }
+    .cost-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      display: inline-block;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    }
     code, pre {
       font-family: Consolas, monospace;
       background: var(--bg-soft);

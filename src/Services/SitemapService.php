@@ -438,13 +438,43 @@ final class SitemapService
     private function inferTypeFromUrl(string $url): string
     {
         $path = strtolower((string) parse_url($url, PHP_URL_PATH));
-        if (str_contains($path, '/p') || preg_match('~/(product|products)/~', $path) === 1) {
-            return 'product';
-        }
-        if (preg_match('~/(category|categories|c)/~', $path) === 1) {
+
+        // Salla-oriented optional internal filter (soft heuristic):
+        // - /c... => category
+        // - /brand... => brand
+        // Keep generic fallbacks for other sitemap structures/platforms.
+        if (
+            preg_match('~/c(?:\d+|/|$)~', $path) === 1
+            || preg_match('~/(?:ar|en)/[^/]+/c(?:\d+|/|$)~', $path) === 1
+        ) {
             return 'category';
         }
-        if (preg_match('~/(brand|brands|b)/~', $path) === 1) {
+        if (
+            str_contains($path, '/brand')
+            || preg_match('~/(?:ar|en)/brand(?:/|$)~', $path) === 1
+        ) {
+            return 'brand';
+        }
+
+        if (
+            preg_match('~/(product|products)/~', $path) === 1
+            || preg_match('~/p\d+(?:/|$)~', $path) === 1
+            || preg_match('~/(?:ar|en)/[^/]+/p\d+(?:/|$)~', $path) === 1
+        ) {
+            return 'product';
+        }
+        if (
+            preg_match('~/(category|categories)/~', $path) === 1
+            || preg_match('~/c\d+(?:/|$)~', $path) === 1
+            || preg_match('~/(?:ar|en)/[^/]+/c\d+(?:/|$)~', $path) === 1
+        ) {
+            return 'category';
+        }
+        if (
+            preg_match('~/(brand|brands)/~', $path) === 1
+            || preg_match('~/b\d+(?:/|$)~', $path) === 1
+            || preg_match('~/(?:ar|en)/[^/]+/b\d+(?:/|$)~', $path) === 1
+        ) {
             return 'brand';
         }
 

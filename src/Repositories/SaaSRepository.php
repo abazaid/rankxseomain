@@ -294,7 +294,7 @@ final class SaaSRepository
         return $record ?: null;
     }
 
-    public function incrementUsageByMerchantId(int $merchantId): void
+    public function incrementUsageByMerchantId(int $merchantId, int $amount = 1): void
     {
         $store = $this->findStoreByMerchantId($merchantId);
 
@@ -302,8 +302,11 @@ final class SaaSRepository
             return;
         }
 
-        $stmt = $this->pdo->prepare('UPDATE subscriptions SET used_products = used_products + 1, updated_at = :updated_at WHERE store_id = :store_id');
+        $amount = max(1, $amount);
+
+        $stmt = $this->pdo->prepare('UPDATE subscriptions SET used_products = used_products + :amount, updated_at = :updated_at WHERE store_id = :store_id');
         $stmt->execute([
+            'amount' => $amount,
             'store_id' => $store['id'],
             'updated_at' => (new DateTimeImmutable())->format('Y-m-d H:i:s'),
         ]);

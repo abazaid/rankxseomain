@@ -19,6 +19,8 @@ use App\Support\Response;
 final class StandaloneController
 {
     private const MAX_SITEMAP_LINKS_CACHE = 10000;
+    private const GENERATION_POINTS = 1;
+    private const DOMAIN_SEO_POINTS = 3;
 
     public function subscription(): void
     {
@@ -100,12 +102,14 @@ final class StandaloneController
                 $mergedSettings['sitemap_links_cache'] = $this->normalizeSitemapLinksCache($links);
                 $mergedSettings['sitemap_links_count'] = (int) ($sitemap['links_count'] ?? count($mergedSettings['sitemap_links_cache']));
                 $mergedSettings['sitemap_last_fetched_at'] = (string) ($sitemap['fetched_at'] ?? date(DATE_ATOM));
+                $mergedSettings['sitemap_analysis'] = $this->buildSitemapAnalysis($mergedSettings['sitemap_links_cache']);
 
                 $message = 'تم جلب روابط السايت ماب بنجاح: ' . $mergedSettings['sitemap_links_count'] . ' رابط.';
             } catch (\Throwable $exception) {
                 $mergedSettings['sitemap_links_cache'] = $this->normalizeSitemapLinksCache((array) ($currentSettings['sitemap_links_cache'] ?? []));
                 $mergedSettings['sitemap_links_count'] = (int) ($currentSettings['sitemap_links_count'] ?? count($mergedSettings['sitemap_links_cache']));
                 $mergedSettings['sitemap_last_fetched_at'] = (string) ($currentSettings['sitemap_last_fetched_at'] ?? '');
+                $mergedSettings['sitemap_analysis'] = $this->normalizeSitemapAnalysis((array) ($currentSettings['sitemap_analysis'] ?? []), $mergedSettings['sitemap_links_cache']);
 
                 $message = 'تم الحفظ. ملاحظة: تعذر جلب روابط السايت ماب - ' . $exception->getMessage();
             }
@@ -113,6 +117,7 @@ final class StandaloneController
             $mergedSettings['sitemap_links_cache'] = [];
             $mergedSettings['sitemap_links_count'] = 0;
             $mergedSettings['sitemap_last_fetched_at'] = '';
+            $mergedSettings['sitemap_analysis'] = $this->normalizeSitemapAnalysis([], []);
             $message = 'تم حذف رابط السايت ماب.';
         }
 
@@ -179,7 +184,7 @@ final class StandaloneController
         $manager = new SubscriptionManager();
         $store = $manager->refreshPeriodIfNeeded($store);
         $quotaType = $quotaByType[$type];
-        if (!$manager->canOptimize($store, $quotaType)) {
+        if (!$manager->canOptimize($store, $quotaType, self::GENERATION_POINTS)) {
             Response::json([
                 'success' => false,
                 'message' => 'Quota exceeded for this feature.',
@@ -211,6 +216,7 @@ final class StandaloneController
                     'description' => (string) ($result['description'] ?? ''),
                     'meta_title' => (string) ($result['metadata_title'] ?? ''),
                     'meta_description' => (string) ($result['metadata_description'] ?? ''),
+                    'seo_slug' => (string) ($result['seo_slug'] ?? ''),
                 ];
                 $usage = is_array($result['_usage'] ?? null) ? $result['_usage'] : [];
                 $model = (string) ($result['_model'] ?? '');
@@ -272,7 +278,7 @@ final class StandaloneController
         $items[] = $row;
         $itemsRoot[$type] = array_slice($items, -300);
 
-        $store = $manager->recordOptimization($store, $newId, $keyword, $modeByType[$type], 'completed');
+        $store = $manager->recordOptimization($store, $newId, $keyword, $modeByType[$type], 'completed', self::GENERATION_POINTS);
         $this->saveStore((string) ($store['merchant_id'] ?? ''), [
             'standalone_items' => $itemsRoot,
         ]);
@@ -311,7 +317,7 @@ final class StandaloneController
 
         $manager = new SubscriptionManager();
         $store = $manager->refreshPeriodIfNeeded($store);
-        if (!$manager->canOptimize($store, 'keyword_research')) {
+        if (!$manager->canOptimize($store, 'keyword_research', self::GENERATION_POINTS)) {
             Response::json([
                 'success' => false,
                 'message' => 'Keyword quota exceeded.',
@@ -345,7 +351,7 @@ final class StandaloneController
         ];
         $settings['keyword_history'] = array_slice($history, -100);
 
-        $store = $manager->recordOptimization($store, 0, $keyword, 'keyword_research', 'completed');
+        $store = $manager->recordOptimization($store, 0, $keyword, 'keyword_research', 'completed', self::GENERATION_POINTS);
         $this->saveStore((string) ($store['merchant_id'] ?? ''), [
             'settings' => $settings,
         ]);
@@ -449,7 +455,7 @@ final class StandaloneController
 
         $manager = new SubscriptionManager();
         $store = $manager->refreshPeriodIfNeeded($store);
-        if (!$manager->canOptimize($store, 'domain_seo')) {
+        if (!$manager->canOptimize($store, 'domain_seo', self::DOMAIN_SEO_POINTS)) {
             Response::json([
                 'success' => false,
                 'message' => 'Domain SEO quota exceeded.',
@@ -495,7 +501,7 @@ final class StandaloneController
         ];
         $settings['domain_seo_history'] = array_slice($history, -100);
 
-        $store = $manager->recordOptimization($store, 0, $domain, 'domain_seo', 'completed');
+        $store = $manager->recordOptimization($store, 0, $domain, 'domain_seo', 'completed', self::DOMAIN_SEO_POINTS);
         $this->saveStore((string) ($store['merchant_id'] ?? ''), [
             'settings' => $settings,
         ]);
@@ -709,6 +715,10 @@ final class StandaloneController
         $normalizedSitemapLinksCache = $this->normalizeSitemapLinksCache(
             is_array($settings['sitemap_links_cache'] ?? null) ? (array) $settings['sitemap_links_cache'] : []
         );
+        $normalizedSitemapAnalysis = $this->normalizeSitemapAnalysis(
+            is_array($settings['sitemap_analysis'] ?? null) ? (array) $settings['sitemap_analysis'] : [],
+            $normalizedSitemapLinksCache
+        );
 
         $productDescriptionInstructions = $this->normalizeText(
             $this->pickInstructionWithDefault($settings, 'product_description_instructions', (string) $defaults['product_description_instructions']),
@@ -723,6 +733,7 @@ final class StandaloneController
             'product_description_instructions' => $productDescriptionInstructions,
             'meta_title_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'meta_title_instructions', (string) $defaults['meta_title_instructions']), 3000),
             'meta_description_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'meta_description_instructions', (string) $defaults['meta_description_instructions']), 3000),
+            'seo_page_url_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'seo_page_url_instructions', (string) $defaults['seo_page_url_instructions']), 2000),
             'store_seo_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'store_seo_instructions', (string) $defaults['store_seo_instructions']), 5000),
             'brand_seo_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'brand_seo_instructions', (string) $defaults['brand_seo_instructions']), 3000),
             'category_seo_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'category_seo_instructions', (string) $defaults['category_seo_instructions']), 3000),
@@ -733,6 +744,7 @@ final class StandaloneController
             'sitemap_links_cache' => $normalizedSitemapLinksCache,
             'sitemap_links_count' => (int) ($settings['sitemap_links_count'] ?? count($normalizedSitemapLinksCache)),
             'sitemap_last_fetched_at' => (string) ($settings['sitemap_last_fetched_at'] ?? ''),
+            'sitemap_analysis' => $normalizedSitemapAnalysis,
             'keyword_history' => is_array($settings['keyword_history'] ?? null) ? array_slice((array) $settings['keyword_history'], -100) : [],
             'domain_seo' => is_array($settings['domain_seo'] ?? null) ? (array) $settings['domain_seo'] : [
                 'domain' => '',
@@ -982,6 +994,7 @@ final class StandaloneController
 - واضح: يفهم منه محتوى الصورة
 - يتضمن اسم المنتج عند الإمكان
 - 70-125 حرف تقريبًا",
+            'seo_page_url_instructions' => "رابط صفحة المنتج (SEO Page URL)\nالقاعدة:\n- يتم توليد الرابط من اسم المنتج أو التصنيف أو الماركة فقط.\n- بدون أي إضافات تسويقية أو كلمات زائدة.\n- يسمح بدمج عربي + English إذا الاسم يحتوي ذلك.\n- استخدم شرطة - بين الكلمات بدل المسافات.\n- الرابط النهائي لا يتجاوز 90 حرفًا.",
             'store_seo_instructions' => $this->getDefaultStoreSeoInstructions(),
             'brand_seo_instructions' => $this->getDefaultBrandSeoInstructions(),
             'category_seo_instructions' => $this->getDefaultCategorySeoInstructions(),
@@ -992,6 +1005,7 @@ final class StandaloneController
             'sitemap_links_cache' => [],
             'sitemap_links_count' => 0,
             'sitemap_last_fetched_at' => '',
+            'sitemap_analysis' => $this->normalizeSitemapAnalysis([], []),
         ];
     }
 
@@ -1045,7 +1059,7 @@ final class StandaloneController
             $rows[] = [
                 'url' => $url,
                 'title' => trim((string) ($item['title'] ?? '')),
-                'type' => trim((string) ($item['type'] ?? 'page')),
+                'type' => $this->normalizeSitemapLinkType((string) ($item['type'] ?? 'page')),
             ];
 
             if (count($rows) >= self::MAX_SITEMAP_LINKS_CACHE) {
@@ -1054,6 +1068,96 @@ final class StandaloneController
         }
 
         return $rows;
+    }
+
+    private function normalizeSitemapLinkType(string $value): string
+    {
+        $type = strtolower(trim($value));
+        if (!in_array($type, ['product', 'category', 'brand', 'page'], true)) {
+            $type = 'page';
+        }
+        return $type;
+    }
+
+    private function normalizeSitemapAnalysis(array $analysis, array $links): array
+    {
+        $countsRaw = is_array($analysis['counts'] ?? null) ? (array) $analysis['counts'] : [];
+        $byTypeRaw = is_array($analysis['by_type'] ?? null) ? (array) $analysis['by_type'] : [];
+        $counts = [
+            'product' => max(0, (int) ($countsRaw['product'] ?? 0)),
+            'category' => max(0, (int) ($countsRaw['category'] ?? 0)),
+            'brand' => max(0, (int) ($countsRaw['brand'] ?? 0)),
+            'page' => max(0, (int) ($countsRaw['page'] ?? 0)),
+        ];
+
+        $byType = [
+            'product' => [],
+            'category' => [],
+            'brand' => [],
+            'page' => [],
+        ];
+
+        foreach (['product', 'category', 'brand', 'page'] as $type) {
+            $rows = is_array($byTypeRaw[$type] ?? null) ? (array) $byTypeRaw[$type] : [];
+            foreach ($rows as $url) {
+                $url = trim((string) $url);
+                if ($url === '') {
+                    continue;
+                }
+                $byType[$type][] = $url;
+                if (count($byType[$type]) >= 500) {
+                    break;
+                }
+            }
+        }
+
+        $hasUsefulData = ($counts['product'] + $counts['category'] + $counts['brand'] + $counts['page']) > 0;
+        if (!$hasUsefulData && $links !== []) {
+            return $this->buildSitemapAnalysis($links);
+        }
+
+        return [
+            'counts' => $counts,
+            'by_type' => $byType,
+            'analyzed_at' => (string) ($analysis['analyzed_at'] ?? ''),
+        ];
+    }
+
+    private function buildSitemapAnalysis(array $links): array
+    {
+        $counts = [
+            'product' => 0,
+            'category' => 0,
+            'brand' => 0,
+            'page' => 0,
+        ];
+        $byType = [
+            'product' => [],
+            'category' => [],
+            'brand' => [],
+            'page' => [],
+        ];
+
+        foreach ($links as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $type = $this->normalizeSitemapLinkType((string) ($row['type'] ?? 'page'));
+            $url = trim((string) ($row['url'] ?? ''));
+            if ($url === '') {
+                continue;
+            }
+            $counts[$type]++;
+            if (count($byType[$type]) < 500) {
+                $byType[$type][] = $url;
+            }
+        }
+
+        return [
+            'counts' => $counts,
+            'by_type' => $byType,
+            'analyzed_at' => date(DATE_ATOM),
+        ];
     }
 
     private function pickInstructionWithDefault(array $settings, string $key, string $default): string
