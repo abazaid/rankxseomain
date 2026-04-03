@@ -3,6 +3,7 @@
   if (!shell) return;
 
   const appBasePath = (shell.dataset.appBasePath || '').replace(/\/+$/, '');
+  const CREDIT_ICON_URL = 'https://app.arvow.com/assets/credits-CqJPMMs5.svg';
 
   const state = {
     keywordLastResult: null,
@@ -50,6 +51,10 @@
       throw new Error(data.message || `فشل الطلب (${response.status})`);
     }
     return data;
+  }
+
+  function creditIconMarkup() {
+    return `<img src="${CREDIT_ICON_URL}" class="credit-icon" alt="رصيد">`;
   }
 
   function setNotice(rootId, message, kind = 'success') {
@@ -122,6 +127,21 @@
     showCopyToast._timer = window.setTimeout(() => {
       el?.classList.remove('is-visible');
     }, 1800);
+  }
+
+  function decodeHtmlEntities(value) {
+    const text = String(value || '');
+    if (!text) return '';
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+  }
+
+  function normalizeDescriptionSource(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const hasEncodedTags = /&lt;\s*\/?\s*[a-z0-9]+[^&]*&gt;/i.test(raw);
+    return hasEncodedTags ? decodeHtmlEntities(raw) : raw;
   }
 
   function showSection(key) {
@@ -234,6 +254,31 @@
     }
   }
 
+  async function copyRenderedDescriptionHtml() {
+    const rendered = document.getElementById('generated-result-description-rendered');
+    if (!rendered) return false;
+    const html = String(rendered.innerHTML || '').trim();
+    if (!html) return false;
+    const plain = htmlToPlainText(html);
+
+    try {
+      if (navigator.clipboard?.write && typeof window.ClipboardItem !== 'undefined') {
+        const item = new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([plain], { type: 'text/plain' }),
+        });
+        await navigator.clipboard.write([item]);
+      } else {
+        await navigator.clipboard.writeText(html);
+      }
+      showCopyToast('تم نسخ HTML الجاهز بنجاح');
+      return true;
+    } catch (error) {
+      showCopyToast('تعذر نسخ HTML', 'error');
+      return false;
+    }
+  }
+
   function openGeneratedResultModal(item, type) {
     if (!item) return;
     const modal = document.getElementById('generated-result-modal');
@@ -259,8 +304,9 @@
     const metaDescEl = document.getElementById('generated-result-meta-description');
     const seoSlugEl = document.getElementById('generated-result-seo-slug');
 
-    const sanitizedDescriptionHtml = sanitizeHtmlForPreview(item.description || '');
-    const plainDescription = htmlToPlainText(item.description || '');
+    const normalizedDescription = normalizeDescriptionSource(item.description || '');
+    const sanitizedDescriptionHtml = sanitizeHtmlForPreview(normalizedDescription);
+    const plainDescription = htmlToPlainText(normalizedDescription);
     const seoSlug = String(item.seo_slug || '').trim();
 
     if (titleEl) titleEl.textContent = item.title || item.keyword || '-';
@@ -326,6 +372,7 @@
               <th>النوع</th>
               <th>الهدف</th>
               <th>الحالة</th>
+              <th>الاستهلاك</th>
             </tr>
           </thead>
           <tbody>
@@ -335,6 +382,7 @@
                 <td>${escapeHtml(row.mode || '-')}</td>
                 <td>${escapeHtml(row.product_name || row.product_id || '-')}</td>
                 <td>${escapeHtml(row.status || '-')}</td>
+                <td>${creditIconMarkup()}${escapeHtml(String(row.points ?? '-'))}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -663,7 +711,7 @@
         </div>
         <div class="card surface-soft stat">
           <span class="stat-label">الاستهلاك</span>
-          <span class="stat-value">${escapeHtml(formatNumber(sub.used_products || 0))} / ${escapeHtml(formatNumber(sub.product_quota || 0))}</span>
+          <span class="stat-value">${creditIconMarkup()}${escapeHtml(formatNumber(sub.used_products || 0))} / ${escapeHtml(formatNumber(sub.product_quota || 0))}</span>
         </div>
       `;
     } catch (error) {
@@ -823,7 +871,19 @@
       await loadItems(type, rootId);
       await loadHome();
       await loadOperations();
-      setNotice(alertId, 'تم التوليد بنجاح. تم فتح النتيجة الجاهزة للنسخ.');
+      if (type === 'product' && competitorBoost) {
+        const analyzed = Number(data?.analysis?.serp_results_count || 0);
+        const pages = Number(data?.analysis?.pages_analyzed_count || 0);
+        const headings = Number(data?.analysis?.heading_patterns_count || 0);
+        const excluded = Number(data?.analysis?.excluded_by_relevance || 0);
+        const fewerThanTenNote = analyzed < 10 ? ' (ملاحظة: النتائج المتاحة أقل من 10 لهذه الكلمة/الفلتر).' : '';
+        setNotice(
+          alertId,
+          `تم التوليد بنجاح. تم تحليل ${analyzed} نتائج، وفحص ${pages} صفحات، واستخراج ${headings} نمط عناوين، واستبعاد ${excluded} نتيجة غير مطابقة.${fewerThanTenNote}`,
+        );
+      } else {
+        setNotice(alertId, 'تم التوليد بنجاح. تم فتح النتيجة الجاهزة للنسخ.');
+      }
       if (data && data.item) {
         openGeneratedResultModal(data.item, type);
       }
@@ -987,6 +1047,14 @@
           copyTextFromField(fieldId);
         }
       }
+
+      const copyModeButton = target.closest('[data-copy-mode]');
+      if (copyModeButton instanceof HTMLElement) {
+        const mode = copyModeButton.getAttribute('data-copy-mode') || '';
+        if (mode === 'html-description') {
+          copyRenderedDescriptionHtml();
+        }
+      }
     });
 
     document.getElementById('generated-result-close')?.addEventListener('click', closeGeneratedResultModal);
@@ -998,10 +1066,22 @@
 
     const competitorBoostCheckbox = document.getElementById('product-competitor-boost');
     const competitorFilters = document.getElementById('product-competitor-filters');
+    const productCostBadge = document.getElementById('generate-product-cost-badge');
     const syncCompetitorFiltersVisibility = () => {
-      if (!competitorFilters) return;
       const isEnabled = Boolean(competitorBoostCheckbox?.checked);
+      if (!competitorFilters) return;
       competitorFilters.style.display = isEnabled ? '' : 'none';
+      if (productCostBadge) {
+        if (isEnabled) {
+          productCostBadge.classList.add('is-expensive');
+          productCostBadge.title = 'سيتم استهلاك 5 نقاط';
+          productCostBadge.innerHTML = '<span class="cost-dot"></span>5 نقاط';
+        } else {
+          productCostBadge.classList.remove('is-expensive');
+          productCostBadge.title = 'سيتم استهلاك 1 نقطة';
+          productCostBadge.innerHTML = '<span class="cost-dot"></span>1 نقطة';
+        }
+      }
     };
     competitorBoostCheckbox?.addEventListener('change', syncCompetitorFiltersVisibility);
     syncCompetitorFiltersVisibility();

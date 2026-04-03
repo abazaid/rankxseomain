@@ -168,13 +168,39 @@ final class View
       border-color: #FCD34D;
       color: #92400E;
     }
+    .competitor-option-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+    }
+    .competitor-option-label input[type="checkbox"] {
+      margin: 0;
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+    }
+    .competitor-option-label strong {
+      flex: 0 1 auto;
+    }
     .cost-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: currentColor;
+      width: 16px;
+      height: 16px;
+      border-radius: 0;
+      background-image: url('https://app.arvow.com/assets/credits-CqJPMMs5.svg');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
       display: inline-block;
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+      flex-shrink: 0;
+    }
+    .credit-icon {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+      vertical-align: -3px;
+      margin-inline-end: 6px;
     }
     code, pre {
       font-family: Consolas, monospace;

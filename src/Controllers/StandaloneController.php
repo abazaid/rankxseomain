@@ -207,6 +207,7 @@ final class StandaloneController
         $usage = [];
         $model = '';
         $dataForSeoUsage = [];
+        $analysisSummary = null;
 
         try {
             $openAI = new OpenAIClient();
@@ -220,6 +221,16 @@ final class StandaloneController
                     $competitorReport = $this->buildProductCompetitorInsights($keyword, $country, $language, $device);
                     $competitorInsights = (array) ($competitorReport['insights'] ?? []);
                     $dataForSeoUsage = is_array($competitorReport['_usage'] ?? null) ? (array) $competitorReport['_usage'] : [];
+                    $analysisSummary = is_array($competitorReport['summary'] ?? null) ? (array) $competitorReport['summary'] : null;
+
+                    if ((int) ($analysisSummary['pages_analyzed_count'] ?? 0) <= 0) {
+                        Response::json([
+                            'success' => false,
+                            'message' => 'تعذر جلب محتوى نتائج المنافسين. حاول تغيير الكلمة المفتاحية أو اللغة/الدولة/الجهاز ثم أعد المحاولة.',
+                            'analysis' => $analysisSummary,
+                        ], 422);
+                        return;
+                    }
                 }
 
                 $payload = [
@@ -322,6 +333,7 @@ final class StandaloneController
         Response::json([
             'success' => true,
             'item' => $row,
+            'analysis' => $analysisSummary,
             'subscription' => $manager->summary($store),
         ]);
     }
@@ -1452,7 +1464,7 @@ TEXT;
     }
 
     /**
-     * @return array{insights: array<string,mixed>, _usage: array<string,mixed>}
+     * @return array{insights: array<string,mixed>, summary: array<string,mixed>, _usage: array<string,mixed>}
      */
     private function buildProductCompetitorInsights(string $keyword, string $country, string $language, string $device): array
     {
@@ -1461,16 +1473,29 @@ TEXT;
         $items = array_values(array_filter((array) ($serp['items'] ?? []), static function ($item): bool {
             return is_array($item) && trim((string) ($item['url'] ?? '')) !== '';
         }));
+        $keywordTokens = $this->extractKeywordTokens($keyword);
 
         usort($items, static function (array $a, array $b): int {
             return (int) ($a['rank_absolute'] ?? 9999) <=> (int) ($b['rank_absolute'] ?? 9999);
         });
 
-        $topItems = array_slice($items, 0, 10);
+        $relevantItems = [];
+        foreach ($items as $item) {
+            $text = trim((string) ($item['title'] ?? '')) . ' '
+                . trim((string) ($item['description'] ?? '')) . ' '
+                . trim((string) ($item['url'] ?? ''));
+            $score = $this->scoreKeywordRelevance($text, $keywordTokens);
+            if ($score >= 1) {
+                $relevantItems[] = $item;
+            }
+        }
+
+        $topItems = array_slice($relevantItems !== [] ? $relevantItems : $items, 0, 10);
         $competitiveTitles = [];
         $competitiveDescriptions = [];
         $topHeadings = [];
         $pageInsights = [];
+        $excludedByRelevance = 0;
 
         foreach ($topItems as $item) {
             $title = trim((string) ($item['title'] ?? ''));
@@ -1492,6 +1517,15 @@ TEXT;
                 continue;
             }
 
+            $pageRelevanceText = trim((string) ($page['title'] ?? '')) . ' '
+                . trim((string) ($page['meta_description'] ?? '')) . ' '
+                . trim((string) ($page['content_sample'] ?? ''));
+            $pageRelevanceScore = $this->scoreKeywordRelevance($pageRelevanceText, $keywordTokens);
+            if ($pageRelevanceScore <= 0) {
+                $excludedByRelevance++;
+                continue;
+            }
+
             $pageInsights[] = $page;
             foreach ((array) ($page['top_h2'] ?? []) as $heading) {
                 $heading = trim((string) $heading);
@@ -1503,6 +1537,10 @@ TEXT;
 
         arsort($topHeadings);
         $headingsSample = array_slice(array_keys($topHeadings), 0, 12);
+        $topUrls = array_values(array_map(static fn(array $item): string => (string) ($item['url'] ?? ''), $topItems));
+        $topUrls = array_values(array_filter($topUrls, static fn(string $url): bool => trim($url) !== ''));
+        $analyzedUrls = array_values(array_map(static fn(array $page): string => (string) ($page['url'] ?? ''), $pageInsights));
+        $failedUrls = array_values(array_diff($topUrls, $analyzedUrls));
 
         return [
             'insights' => [
@@ -1528,6 +1566,15 @@ TEXT;
                     ];
                 }, $topItems)),
                 'top_pages_analysis' => $pageInsights,
+            ],
+            'summary' => [
+                'keyword' => $keyword,
+                'serp_results_count' => count($topItems),
+                'pages_analyzed_count' => count($pageInsights),
+                'heading_patterns_count' => count($headingsSample),
+                'excluded_by_relevance' => $excludedByRelevance,
+                'top_urls' => array_slice($topUrls, 0, 10),
+                'failed_urls' => array_slice(array_values($failedUrls), 0, 10),
             ],
             '_usage' => is_array($result['_usage'] ?? null) ? (array) $result['_usage'] : [],
         ];
@@ -1601,6 +1648,87 @@ TEXT;
         }
 
         return $results;
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function extractKeywordTokens(string $keyword): array
+    {
+        $normalized = $this->normalizeComparableText($keyword);
+        if ($normalized === '') {
+            return [];
+        }
+
+        $parts = preg_split('/[\s\-]+/u', $normalized) ?: [];
+        $stopWords = [
+            'من', 'الى', 'على', 'في', 'عن', 'مع', 'او', 'أو', 'the', 'and', 'for', 'with', 'to',
+        ];
+        $normalizeToken = static function (string $value): string {
+            return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+        };
+        $stopMap = array_fill_keys(array_map($normalizeToken, $stopWords), true);
+
+        $tokens = [];
+        foreach ($parts as $part) {
+            $token = trim($part);
+            if ($token === '') {
+                continue;
+            }
+            $len = function_exists('mb_strlen') ? mb_strlen($token, 'UTF-8') : strlen($token);
+            if ($len < 3) {
+                continue;
+            }
+            $lower = $normalizeToken($token);
+            if (isset($stopMap[$lower])) {
+                continue;
+            }
+            $tokens[$lower] = $token;
+        }
+
+        return array_values($tokens);
+    }
+
+    private function scoreKeywordRelevance(string $text, array $tokens): int
+    {
+        $haystack = $this->normalizeComparableText($text);
+        if ($haystack === '' || $tokens === []) {
+            return 0;
+        }
+
+        $score = 0;
+        foreach ($tokens as $token) {
+            $needle = $this->normalizeComparableText((string) $token);
+            if ($needle === '') {
+                continue;
+            }
+            if (str_contains($haystack, $needle)) {
+                $len = function_exists('mb_strlen') ? mb_strlen($needle, 'UTF-8') : strlen($needle);
+                $score += $len >= 5 ? 2 : 1;
+            }
+        }
+
+        return $score;
+    }
+
+    private function normalizeComparableText(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (function_exists('mb_strtolower')) {
+            $value = mb_strtolower($value, 'UTF-8');
+        } else {
+            $value = strtolower($value);
+        }
+
+        $value = preg_replace('/https?:\/\/[^\s]+/u', ' ', $value) ?? $value;
+        $value = preg_replace('/[^\p{L}\p{N}\s\-]+/u', ' ', $value) ?? $value;
+        $value = preg_replace('/[\s\-]+/u', ' ', $value) ?? $value;
+
+        return trim($value);
     }
 
 

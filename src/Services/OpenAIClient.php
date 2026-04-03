@@ -587,7 +587,7 @@ Rules:
                 'content' => [
                     [
                         'type' => 'input_text',
-                        'text' => 'You are an expert ecommerce content writer specializing in Arabic content for Saudi customers. Write detailed, SEO-optimized product descriptions following EXACTLY the structure provided in the instructions.
+                        'text' => 'You are a veteran ecommerce SEO strategist with 50+ years of practical experience in search content. Your mission is to maximize ranking potential and push this product toward position #1 with high-quality, trustworthy content. Write detailed, SEO-optimized product descriptions following EXACTLY the structure provided in the instructions.
 
 IMPORTANT STRUCTURE RULES:
 1. Start with an introduction paragraph (no heading) - introduce the product, brand, and main benefit
@@ -720,7 +720,7 @@ Return ONLY clean HTML without any labels, comments, or explanations.',
                 'content' => [
                     [
                         'type' => 'input_text',
-                        'text' => 'You are an expert ecommerce content writer for Saudi customers. Return valid JSON with EXACTLY these keys: description, metadata_title, metadata_description, seo_slug.
+                        'text' => 'You are a veteran ecommerce SEO strategist with 50+ years of practical experience. Your mission is to maximize ranking potential and push this product toward position #1 through superior structure, intent-match, and usefulness. Return valid JSON with EXACTLY these keys: description, metadata_title, metadata_description, seo_slug.
 
 DESCRIPTION STRUCTURE (CRITICAL):
 1. Start with introduction paragraph (no heading)
@@ -773,6 +773,7 @@ COMPETITOR MODE (when competitor_insights is provided):
                             . $this->buildInstructionBlock('Meta Description Rules', $metaDescriptionInstructions)
                             . $this->buildInstructionBlock('SEO Page URL Rules', $seoPageUrlInstructions)
                             . $this->buildInstructionBlock('Competitor Analysis Guidance', $this->buildCompetitorGuidanceBlock($product))
+                            . $this->buildInstructionBlock('Competitor Analysis Input', $this->buildCompetitorInputBlock($product))
                             . "\nProduct Data:\n" . json_encode($productSummary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
                     ],
                 ],
@@ -812,12 +813,14 @@ COMPETITOR MODE (when competitor_insights is provided):
 
     private function buildNaturalWritingBlock(): string
     {
-        return "Write in a natural, credible, human editorial voice.\n"
-            . "Vary sentence rhythm and openings; avoid repetitive template phrasing.\n"
-            . "Prefer concrete details, useful specifics, and clear benefits over vague claims.\n"
-            . "Avoid robotic transitions, keyword stuffing, and exaggerated marketing cliches.\n"
-            . "Keep tone aligned with the merchant brand and target audience.\n"
-            . "Make each section feel purposeful and context-aware, not generic filler.";
+        return "Write in a genuinely human, editorial style that feels natural to Arabic readers in Saudi Arabia.\n"
+            . "Vary sentence length and rhythm: mix short and medium sentences, and avoid repetitive openings.\n"
+            . "Use concrete, product-specific details and practical phrasing instead of generic marketing wording.\n"
+            . "Avoid robotic connectors and over-structured transitions (e.g., repetitive 'أولاً/ثانياً/ثالثاً' unless truly needed).\n"
+            . "Do not sound like a template. Each paragraph should add a distinct, useful point.\n"
+            . "Use natural lexical variation and avoid repeating the same adjectives and sentence patterns.\n"
+            . "Keep claims factual, balanced, and credible; avoid exaggerated promises.\n"
+            . "Maintain brand voice and audience-fit, while keeping readability and clarity as top priorities.";
     }
 
     private function buildCompetitorGuidanceBlock(array $product): string
@@ -830,7 +833,35 @@ COMPETITOR MODE (when competitor_insights is provided):
         return "Use competitor_insights to outperform top 10 results in structure and depth.\n"
             . "You may borrow topical ideas and heading patterns, but never copy text verbatim.\n"
             . "Never mention competitor brands or competitor store details.\n"
-            . "Keep all output faithful to merchant brand/context and product data only.";
+            . "Keep all output faithful to merchant brand/context and product data only.\n"
+            . "Extract heading intent from common_h2_patterns/top_pages_analysis and convert it into better original headings.\n"
+            . "Include at least 4 useful <h3> subheadings distributed across the main sections when competitor_insights is present.\n"
+            . "Create stronger, clearer metadata by comparing competitor title/description patterns, then improving clarity, intent match, and CTR potential.";
+    }
+
+    private function buildCompetitorInputBlock(array $product): string
+    {
+        $insights = is_array($product['competitor_insights'] ?? null) ? (array) $product['competitor_insights'] : [];
+        if ($insights === []) {
+            return '';
+        }
+
+        $summary = [
+            'keyword' => (string) ($insights['keyword'] ?? ''),
+            'country' => (string) ($insights['country'] ?? ''),
+            'language' => (string) ($insights['language'] ?? ''),
+            'device' => (string) ($insights['device'] ?? ''),
+            'common_h2_patterns' => array_values(array_slice((array) ($insights['common_h2_patterns'] ?? []), 0, 12)),
+            'competitor_titles_sample' => array_values(array_slice((array) ($insights['competitor_titles_sample'] ?? []), 0, 10)),
+            'competitor_descriptions_sample' => array_values(array_slice((array) ($insights['competitor_descriptions_sample'] ?? []), 0, 10)),
+            'top_results' => array_values(array_slice((array) ($insights['top_results'] ?? []), 0, 10)),
+            'top_pages_analysis' => array_values(array_slice((array) ($insights['top_pages_analysis'] ?? []), 0, 10)),
+        ];
+
+        return "This block is mandatory input for writing decisions when present.\n"
+            . "Use it to compare, identify gaps, and produce better original structure + metadata.\n"
+            . "Do not copy competitor text verbatim.\n"
+            . json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
     }
 
     /**
