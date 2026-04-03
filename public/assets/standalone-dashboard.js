@@ -249,10 +249,12 @@
     const typeEl = document.getElementById('generated-result-type');
     const dateEl = document.getElementById('generated-result-date');
     const descHtmlEl = document.getElementById('generated-result-description-html');
+    const descPlainEl = document.getElementById('generated-result-description-plain');
     const descRenderedEl = document.getElementById('generated-result-description-rendered');
     const descCardEl = document.getElementById('generated-result-description-card');
     const descTitleEl = document.getElementById('generated-result-description-title');
-    const descCopyBtnEl = document.getElementById('generated-result-description-copy-btn');
+    const descCopyHtmlBtnEl = document.getElementById('generated-result-description-copy-html-btn');
+    const descCopyPlainBtnEl = document.getElementById('generated-result-description-copy-plain-btn');
     const metaTitleEl = document.getElementById('generated-result-meta-title');
     const metaDescEl = document.getElementById('generated-result-meta-description');
     const seoSlugEl = document.getElementById('generated-result-seo-slug');
@@ -272,16 +274,20 @@
       if (descCardEl) descCardEl.style.display = '';
       if (type === 'brand') {
         if (descTitleEl) descTitleEl.textContent = 'الوصف المختصر';
-        if (descCopyBtnEl) descCopyBtnEl.textContent = 'نسخ الوصف المختصر';
+        if (descCopyHtmlBtnEl) descCopyHtmlBtnEl.textContent = 'نسخ الوصف المختصر';
+        if (descCopyPlainBtnEl) descCopyPlainBtnEl.textContent = 'نسخ نص عادي';
         if (descHtmlEl) descHtmlEl.value = plainDescription;
+        if (descPlainEl) descPlainEl.value = plainDescription;
         if (descRenderedEl) {
           descRenderedEl.textContent = plainDescription || 'لا يوجد وصف متاح.';
           descRenderedEl.scrollTop = 0;
         }
       } else {
         if (descTitleEl) descTitleEl.textContent = 'وصف المحتوى';
-        if (descCopyBtnEl) descCopyBtnEl.textContent = 'نسخ الوصف';
+        if (descCopyHtmlBtnEl) descCopyHtmlBtnEl.textContent = 'نسخ HTML جاهز';
+        if (descCopyPlainBtnEl) descCopyPlainBtnEl.textContent = 'نسخ نص عادي';
         if (descHtmlEl) descHtmlEl.value = sanitizedDescriptionHtml;
+        if (descPlainEl) descPlainEl.value = plainDescription;
         if (descRenderedEl) {
           descRenderedEl.innerHTML = sanitizedDescriptionHtml || '<p class="muted">لا يوجد وصف متاح.</p>';
           descRenderedEl.scrollTop = 0;
@@ -777,6 +783,12 @@
 
     const keyword = (document.getElementById(keywordId)?.value || '').trim();
     const context = (document.getElementById(contextId)?.value || '').trim();
+    const competitorBoost = type === 'product'
+      ? Boolean(document.getElementById('product-competitor-boost')?.checked)
+      : false;
+    const competitorCountry = document.getElementById('product-competitor-country')?.value || 'sa';
+    const competitorLanguage = document.getElementById('product-competitor-language')?.value || 'ar';
+    const competitorDevice = document.getElementById('product-competitor-device')?.value || 'desktop';
     const alertId = alertMap[type] || 'product-alert';
     const button = document.getElementById(buttonMap[type] || '');
     const idleText = buttonText[type] || 'توليد';
@@ -787,13 +799,26 @@
     }
 
     setButtonLoading(button, true, idleText, 'جاري التوليد...');
-    setNotice(alertId, 'جاري التوليد الآن... قد يستغرق هذا بعض الوقت.');
+    setNotice(
+      alertId,
+      competitorBoost
+        ? 'جاري تحليل أول 10 نتائج وتوليد محتوى أقوى... قد يستغرق هذا بعض الوقت.'
+        : 'جاري التوليد الآن... قد يستغرق هذا بعض الوقت.'
+    );
 
     try {
       const data = await apiFetch('/items/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, keyword, context }),
+        body: JSON.stringify({
+          type,
+          keyword,
+          context,
+          competitor_boost: competitorBoost,
+          country: competitorCountry,
+          language: competitorLanguage,
+          device: competitorDevice,
+        }),
       });
       await loadItems(type, rootId);
       await loadHome();
@@ -970,6 +995,16 @@
         closeGeneratedResultModal();
       }
     });
+
+    const competitorBoostCheckbox = document.getElementById('product-competitor-boost');
+    const competitorFilters = document.getElementById('product-competitor-filters');
+    const syncCompetitorFiltersVisibility = () => {
+      if (!competitorFilters) return;
+      const isEnabled = Boolean(competitorBoostCheckbox?.checked);
+      competitorFilters.style.display = isEnabled ? '' : 'none';
+    };
+    competitorBoostCheckbox?.addEventListener('change', syncCompetitorFiltersVisibility);
+    syncCompetitorFiltersVisibility();
 
     document.getElementById('save-settings-btn')?.addEventListener('click', saveSettings);
     document.getElementById('save-sitemap-settings')?.addEventListener('click', saveSitemapSettings);

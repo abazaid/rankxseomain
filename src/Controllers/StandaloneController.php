@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Repositories\SaaSRepository;
 use App\Repositories\StoreRepository;
 use App\Services\DataForSeoClient;
+use App\Services\HttpClient;
 use App\Services\OpenAICostCalculator;
 use App\Services\OpenAIClient;
 use App\Services\SitemapService;
@@ -21,6 +22,7 @@ final class StandaloneController
     private const MAX_SITEMAP_LINKS_CACHE = 10000;
     private const GENERATION_POINTS = 1;
     private const DOMAIN_SEO_POINTS = 3;
+    private const PRODUCT_COMPETITOR_POINTS = 5;
 
     public function subscription(): void
     {
@@ -144,6 +146,11 @@ final class StandaloneController
 
         $type = $this->normalizeItemType((string) Request::query('type', 'product'));
         $items = (array) (($store['standalone_items'][$type] ?? []));
+        $items = array_map(function ($row): array {
+            $item = is_array($row) ? $row : [];
+            $item['seo_slug'] = $this->normalizeSeoSlug((string) ($item['seo_slug'] ?? ''));
+            return $item;
+        }, $items);
 
         Response::json([
             'success' => true,
@@ -164,6 +171,7 @@ final class StandaloneController
         $type = $this->normalizeItemType((string) ($input['type'] ?? 'product'));
         $keyword = trim((string) ($input['keyword'] ?? ''));
         $context = trim((string) ($input['context'] ?? ''));
+        $competitorBoost = $type === 'product' && filter_var($input['competitor_boost'] ?? false, FILTER_VALIDATE_BOOL);
 
         if ($keyword === '') {
             Response::json(['success' => false, 'message' => 'Keyword is required.'], 422);
@@ -184,7 +192,8 @@ final class StandaloneController
         $manager = new SubscriptionManager();
         $store = $manager->refreshPeriodIfNeeded($store);
         $quotaType = $quotaByType[$type];
-        if (!$manager->canOptimize($store, $quotaType, self::GENERATION_POINTS)) {
+        $generationCost = $competitorBoost ? self::PRODUCT_COMPETITOR_POINTS : self::GENERATION_POINTS;
+        if (!$manager->canOptimize($store, $quotaType, $generationCost)) {
             Response::json([
                 'success' => false,
                 'message' => 'Quota exceeded for this feature.',
@@ -197,11 +206,22 @@ final class StandaloneController
         $generated = [];
         $usage = [];
         $model = '';
+        $dataForSeoUsage = [];
 
         try {
             $openAI = new OpenAIClient();
 
             if ($type === 'product') {
+                $competitorInsights = [];
+                if ($competitorBoost) {
+                    $country = strtolower(trim((string) ($input['country'] ?? 'sa')));
+                    $language = strtolower(trim((string) ($input['language'] ?? (($settings['output_language'] ?? 'ar')))));
+                    $device = strtolower(trim((string) ($input['device'] ?? 'desktop')));
+                    $competitorReport = $this->buildProductCompetitorInsights($keyword, $country, $language, $device);
+                    $competitorInsights = (array) ($competitorReport['insights'] ?? []);
+                    $dataForSeoUsage = is_array($competitorReport['_usage'] ?? null) ? (array) $competitorReport['_usage'] : [];
+                }
+
                 $payload = [
                     'name' => $keyword,
                     'description' => $context,
@@ -209,6 +229,7 @@ final class StandaloneController
                         'title' => '',
                         'description' => '',
                     ],
+                    'competitor_insights' => $competitorInsights,
                 ];
                 $result = $openAI->generateProductContent($payload, $settings, 'all');
                 $generated = [
@@ -272,13 +293,14 @@ final class StandaloneController
             'description' => $generated['description'],
             'meta_title' => $generated['meta_title'],
             'meta_description' => $generated['meta_description'],
-            'seo_slug' => (string) ($generated['seo_slug'] ?? ''),
+            'seo_slug' => $this->normalizeSeoSlug((string) ($generated['seo_slug'] ?? '')),
+            'competitor_boost' => $competitorBoost,
             'created_at' => date(DATE_ATOM),
         ];
         $items[] = $row;
         $itemsRoot[$type] = array_slice($items, -300);
 
-        $store = $manager->recordOptimization($store, $newId, $keyword, $modeByType[$type], 'completed', self::GENERATION_POINTS);
+        $store = $manager->recordOptimization($store, $newId, $keyword, $modeByType[$type], 'completed', $generationCost);
         $this->saveStore((string) ($store['merchant_id'] ?? ''), [
             'standalone_items' => $itemsRoot,
         ]);
@@ -287,6 +309,14 @@ final class StandaloneController
         if ($dbStore && $model !== '' && $usage !== []) {
             $cost = (new OpenAICostCalculator())->calculate($usage);
             (new SaaSRepository())->logAiUsage((int) $dbStore['id'], $newId, $model, $cost, $modeByType[$type]);
+        }
+        if ($dbStore && $type === 'product' && $competitorBoost && $dataForSeoUsage !== []) {
+            (new SaaSRepository())->logDataForSeoUsage(
+                (int) $dbStore['id'],
+                $keyword,
+                'product_competitor_research',
+                $dataForSeoUsage
+            );
         }
 
         Response::json([
@@ -1421,6 +1451,158 @@ TEXT;
 TEXT;
     }
 
+    /**
+     * @return array{insights: array<string,mixed>, _usage: array<string,mixed>}
+     */
+    private function buildProductCompetitorInsights(string $keyword, string $country, string $language, string $device): array
+    {
+        $result = (new DataForSeoClient())->keywordOverview($keyword, $device, $country, $language);
+        $serp = is_array($result['serp'] ?? null) ? (array) $result['serp'] : [];
+        $items = array_values(array_filter((array) ($serp['items'] ?? []), static function ($item): bool {
+            return is_array($item) && trim((string) ($item['url'] ?? '')) !== '';
+        }));
+
+        usort($items, static function (array $a, array $b): int {
+            return (int) ($a['rank_absolute'] ?? 9999) <=> (int) ($b['rank_absolute'] ?? 9999);
+        });
+
+        $topItems = array_slice($items, 0, 10);
+        $competitiveTitles = [];
+        $competitiveDescriptions = [];
+        $topHeadings = [];
+        $pageInsights = [];
+
+        foreach ($topItems as $item) {
+            $title = trim((string) ($item['title'] ?? ''));
+            $description = trim((string) ($item['description'] ?? ''));
+            if ($title !== '') {
+                $competitiveTitles[] = $title;
+            }
+            if ($description !== '') {
+                $competitiveDescriptions[] = $description;
+            }
+
+            $url = trim((string) ($item['url'] ?? ''));
+            if ($url === '') {
+                continue;
+            }
+
+            $page = $this->extractPageSeoSnapshot($url);
+            if ($page === null) {
+                continue;
+            }
+
+            $pageInsights[] = $page;
+            foreach ((array) ($page['top_h2'] ?? []) as $heading) {
+                $heading = trim((string) $heading);
+                if ($heading !== '') {
+                    $topHeadings[$heading] = ($topHeadings[$heading] ?? 0) + 1;
+                }
+            }
+        }
+
+        arsort($topHeadings);
+        $headingsSample = array_slice(array_keys($topHeadings), 0, 12);
+
+        return [
+            'insights' => [
+                'keyword' => $keyword,
+                'country' => $country,
+                'language' => $language,
+                'device' => $device,
+                'serp_context' => [
+                    'location_name' => (string) ($serp['location_name'] ?? ''),
+                    'language_name' => (string) ($serp['language_name'] ?? ''),
+                    'items_count' => count($topItems),
+                ],
+                'competitor_titles_sample' => array_slice($competitiveTitles, 0, 10),
+                'competitor_descriptions_sample' => array_slice($competitiveDescriptions, 0, 10),
+                'common_h2_patterns' => $headingsSample,
+                'top_results' => array_values(array_map(static function (array $item): array {
+                    return [
+                        'rank' => (int) ($item['rank_absolute'] ?? 0),
+                        'title' => (string) ($item['title'] ?? ''),
+                        'description' => (string) ($item['description'] ?? ''),
+                        'url' => (string) ($item['url'] ?? ''),
+                        'domain' => (string) ($item['domain'] ?? ''),
+                    ];
+                }, $topItems)),
+                'top_pages_analysis' => $pageInsights,
+            ],
+            '_usage' => is_array($result['_usage'] ?? null) ? (array) $result['_usage'] : [],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private function extractPageSeoSnapshot(string $url): ?array
+    {
+        try {
+            $response = (new HttpClient())->get($url, [
+                'User-Agent' => 'Mozilla/5.0 (compatible; RankXSEO/1.0; +https://rankxseo.com)',
+                'Accept-Language' => 'ar,en;q=0.9',
+            ], 20);
+        } catch (\Throwable $exception) {
+            return null;
+        }
+
+        $raw = trim((string) (($response['body']['raw'] ?? '') ?: ''));
+        if ($raw === '') {
+            return null;
+        }
+
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $loaded = $dom->loadHTML($raw);
+        libxml_clear_errors();
+        if (!$loaded) {
+            return null;
+        }
+
+        $xpath = new \DOMXPath($dom);
+        $title = trim((string) ($xpath->evaluate('string(//title)') ?? ''));
+        $metaDescription = trim((string) ($xpath->evaluate("string(//meta[translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')='description']/@content)") ?? ''));
+        $h2 = $this->extractHeadingTexts($xpath, 'h2', 8);
+        $h3 = $this->extractHeadingTexts($xpath, 'h3', 8);
+        $bodyText = trim((string) preg_replace('/\s+/u', ' ', (string) ($xpath->evaluate('string(//body)') ?? '')));
+
+        return [
+            'url' => $url,
+            'title' => $this->normalizeText($title, 220),
+            'meta_description' => $this->normalizeText($metaDescription, 320),
+            'top_h2' => $h2,
+            'top_h3' => $h3,
+            'content_length' => function_exists('mb_strlen') ? mb_strlen($bodyText, 'UTF-8') : strlen($bodyText),
+            'content_sample' => $this->normalizeText($bodyText, 600),
+        ];
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function extractHeadingTexts(\DOMXPath $xpath, string $tagName, int $limit = 8): array
+    {
+        $nodes = $xpath->query('//' . $tagName);
+        if (!$nodes instanceof \DOMNodeList) {
+            return [];
+        }
+
+        $results = [];
+        foreach ($nodes as $node) {
+            $text = trim((string) preg_replace('/\s+/u', ' ', (string) $node->textContent));
+            if ($text === '') {
+                continue;
+            }
+            $results[] = $this->normalizeText($text, 140);
+            if (count($results) >= $limit) {
+                break;
+            }
+        }
+
+        return $results;
+    }
+
 
     private function normalizeText(string $value, int $maxLen): string
     {
@@ -1432,5 +1614,26 @@ TEXT;
             return mb_substr($trimmed, 0, $maxLen, 'UTF-8');
         }
         return substr($trimmed, 0, $maxLen);
+    }
+
+    private function normalizeSeoSlug(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (function_exists('mb_strtolower')) {
+            $value = mb_strtolower($value, 'UTF-8');
+        } else {
+            $value = strtolower($value);
+        }
+
+        $value = preg_replace('/[^\p{L}\p{N}\s\-]+/u', ' ', $value) ?? $value;
+        $value = preg_replace('/[\s_]+/u', '-', trim($value)) ?? $value;
+        $value = preg_replace('/-+/u', '-', $value) ?? $value;
+        $value = trim($value, '-');
+
+        return $this->normalizeText($value, 90);
     }
 }

@@ -118,6 +118,21 @@ if ($appBasePath === '/') {
         <div class="grid" style="margin-top:0;">
           <div><label><strong>اسم المنتج / الكلمة المفتاحية</strong></label><input id="product-keyword" type="text" placeholder="مثال: حذاء جري رجالي"></div>
           <div><label><strong>معلومات إضافية (اختياري)</strong></label><input id="product-context" type="text" placeholder="الخامة، الجمهور، السعر..."></div>
+          <div style="grid-column:1/-1;">
+            <label style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <input id="product-competitor-boost" type="checkbox">
+              <strong>البحث عن أول 10 نتائج في جوجل وكتابة محتوى أقوى</strong>
+              <span class="cost-badge is-expensive" title="عند التفعيل سيتم استهلاك 5 نقاط"><span class="cost-dot"></span>5 نقاط</span>
+            </label>
+            <p class="muted" style="margin:8px 0 0;">عند التفعيل: يتم تحليل أفضل 10 نتائج باستخدام DataForSEO لبناء محتوى وميتا أقوى مع الحفاظ على هوية متجرك وتعليمات السيو.</p>
+          </div>
+          <div id="product-competitor-filters" style="grid-column:1/-1;display:none;">
+            <div class="grid" style="margin-top:0;">
+              <div><label><strong>الدولة</strong></label><select id="product-competitor-country"><option value="sa">السعودية</option></select></div>
+              <div><label><strong>لغة البحث</strong></label><select id="product-competitor-language"><option value="ar">العربية</option><option value="en">English</option></select></div>
+              <div><label><strong>نوع المتصفح</strong></label><select id="product-competitor-device"><option value="desktop">كمبيوتر</option><option value="mobile">جوال</option></select></div>
+            </div>
+          </div>
         </div>
         <div id="product-alert"></div>
       </div>
@@ -288,9 +303,13 @@ if ($appBasePath === '/') {
         <div id="generated-result-description-card" class="card surface-soft" style="box-shadow:none;">
           <div class="section-head" style="margin-bottom:10px;">
             <h3 id="generated-result-description-title" style="margin:0;">وصف المحتوى</h3>
-            <button id="generated-result-description-copy-btn" class="btn btn-secondary" type="button" data-copy-target="generated-result-description-html">نسخ الوصف</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button id="generated-result-description-copy-html-btn" class="btn btn-secondary" type="button" data-copy-target="generated-result-description-html">نسخ HTML جاهز</button>
+              <button id="generated-result-description-copy-plain-btn" class="btn btn-secondary" type="button" data-copy-target="generated-result-description-plain">نسخ نص عادي</button>
+            </div>
           </div>
           <input id="generated-result-description-html" type="hidden" value="">
+          <input id="generated-result-description-plain" type="hidden" value="">
           <div id="generated-result-description-rendered" class="generated-result-rendered"></div>
           <div id="generated-result-copy-alert"></div>
         </div>

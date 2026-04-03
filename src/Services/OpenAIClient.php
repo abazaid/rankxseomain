@@ -138,6 +138,7 @@ final class OpenAIClient
         $userContentText = "Generate one ALT text in language={$language} as an SEO professional.\nRules:\n- Length target: 55-70 characters.\n- Mention the product clearly and naturally.\n- Must be a complete, readable phrase (not cut off).\n- No keyword stuffing.\n- No promotional phrases.\n- Use letters, numbers and spaces only.\n- Return only ALT text.\n"
             . $this->buildInstructionBlock('Global merchant instructions', $globalInstructions)
             . $this->buildInstructionBlock('Merchant business profile', $businessContextBlock)
+            . $this->buildInstructionBlock('Natural Writing Style', $this->buildNaturalWritingBlock())
             . $this->buildInstructionBlock('Image ALT instructions', $imageAltInstructions)
             . "\nProduct name: " . (string) ($product['name'] ?? 'Product') . "\nCurrent image alt: " . (string) ($image['alt'] ?? '');
 
@@ -277,6 +278,7 @@ final class OpenAIClient
                             'text' => "Generate homepage SEO settings in language={$language}. Return JSON only.\nRules:\n- Title should be around 35-65 characters and include core intent.\n- Description should be around 120-160 characters, compelling but factual.\n- Keywords should be 6-12 high-intent terms, comma-separated, no stuffing.\n- Reuse useful existing terms if they are relevant.\n- Reflect the actual store activity from products sample/topics.\n"
                                 . $this->buildInstructionBlock('Global merchant instructions', $globalInstructions)
                                 . $this->buildInstructionBlock('Merchant business profile', $businessContextBlock)
+                                . $this->buildInstructionBlock('Natural Writing Style', $this->buildNaturalWritingBlock())
                                 . $this->buildInstructionBlock('Store SEO instructions', $storeSeoInstructions)
                                 . "\nStore context:\n" . json_encode([
                                     'store_name' => $storeContext['store_name'] ?? null,
@@ -383,6 +385,7 @@ Rules:
 "
                                 . $this->buildInstructionBlock('Global instructions', $globalInstructions)
                                 . $this->buildInstructionBlock('Merchant business profile', $businessContextBlock)
+                                . $this->buildInstructionBlock('Natural Writing Style', $this->buildNaturalWritingBlock())
                                 . $this->buildInstructionBlock('Meta Title rules', $metaTitleInstructions)
                                 . $this->buildInstructionBlock('Meta Description rules', $metaDescriptionInstructions)
                                 . $this->buildInstructionBlock('SEO Page URL rules', $seoPageUrlInstructions)
@@ -491,6 +494,7 @@ Rules:
 "
                                 . $this->buildInstructionBlock('Global instructions', $globalInstructions)
                                 . $this->buildInstructionBlock('Merchant business profile', $businessContextBlock)
+                                . $this->buildInstructionBlock('Natural Writing Style', $this->buildNaturalWritingBlock())
                                 . $this->buildInstructionBlock('Meta Title rules', $metaTitleInstructions)
                                 . $this->buildInstructionBlock('Meta Description rules', $metaDescriptionInstructions)
                                 . $this->buildInstructionBlock('SEO Page URL rules', $seoPageUrlInstructions)
@@ -623,6 +627,7 @@ Return ONLY clean HTML without any labels, comments, or explanations.',
                             . $this->buildInstructionBlock('Internal links', $this->buildInternalLinksPromptBlock($product, $settings, true))
                             . $this->buildInstructionBlock('Merchant Style Guide', $globalInstructions)
                             . $this->buildInstructionBlock('Merchant business profile', $businessContextBlock)
+                            . $this->buildInstructionBlock('Natural Writing Style', $this->buildNaturalWritingBlock())
                             . $this->buildInstructionBlock('Description Template & Rules', $productInstructions)
                             . "\nProduct Data (use ONLY provided data, do NOT fabricate):\n" . json_encode($productSummary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
                     ],
@@ -700,6 +705,7 @@ Return ONLY clean HTML without any labels, comments, or explanations.',
             'metadata_title' => $product['metadata']['title'] ?? null,
             'metadata_description' => $product['metadata']['description'] ?? null,
             'status' => $product['status'] ?? null,
+            'competitor_insights' => is_array($product['competitor_insights'] ?? null) ? (array) $product['competitor_insights'] : null,
         ];
 
         $modeInstruction = match ($mode) {
@@ -742,7 +748,13 @@ MANDATORY SECTION ORDER (DO NOT SKIP):
 13. <h2>الأسئلة الشائعة</h2>
 
 METADATA: metadata_title (50-60 chars, start with product name), metadata_description (140-155 chars, include product name and CTA).
-SEO PAGE URL: seo_slug must be generated from the product name only (no extra words), lowercase, hyphen-separated, URL-safe, supports Arabic/English mixed names, max 90 chars.',
+SEO PAGE URL: seo_slug must be generated from the product name only (no extra words), lowercase, hyphen-separated, URL-safe, supports Arabic/English mixed names, max 90 chars.
+
+COMPETITOR MODE (when competitor_insights is provided):
+- Analyze competitor patterns to produce stronger, richer structure and coverage.
+- Do NOT copy competitor brand names, store names, proprietary claims, or misleading facts.
+- Keep content aligned with merchant identity and provided business profile only.
+- Use competitor data as inspiration for structure and missing angles only.',
                     ],
                 ],
             ],
@@ -755,10 +767,12 @@ SEO PAGE URL: seo_slug must be generated from the product name only (no extra wo
                             . $this->buildInstructionBlock('Internal links', $this->buildInternalLinksPromptBlock($product, $settings, $mode !== 'seo'))
                             . $this->buildInstructionBlock('Style Guide', $globalInstructions)
                             . $this->buildInstructionBlock('Merchant business profile', $businessContextBlock)
+                            . $this->buildInstructionBlock('Natural Writing Style', $this->buildNaturalWritingBlock())
                             . $this->buildInstructionBlock('Description Template', $productInstructions)
                             . $this->buildInstructionBlock('Meta Title Rules', $metaTitleInstructions)
                             . $this->buildInstructionBlock('Meta Description Rules', $metaDescriptionInstructions)
                             . $this->buildInstructionBlock('SEO Page URL Rules', $seoPageUrlInstructions)
+                            . $this->buildInstructionBlock('Competitor Analysis Guidance', $this->buildCompetitorGuidanceBlock($product))
                             . "\nProduct Data:\n" . json_encode($productSummary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
                     ],
                 ],
@@ -794,6 +808,29 @@ SEO PAGE URL: seo_slug must be generated from the product name only (no extra wo
         }
 
         return implode("\n", $lines);
+    }
+
+    private function buildNaturalWritingBlock(): string
+    {
+        return "Write in a natural, credible, human editorial voice.\n"
+            . "Vary sentence rhythm and openings; avoid repetitive template phrasing.\n"
+            . "Prefer concrete details, useful specifics, and clear benefits over vague claims.\n"
+            . "Avoid robotic transitions, keyword stuffing, and exaggerated marketing cliches.\n"
+            . "Keep tone aligned with the merchant brand and target audience.\n"
+            . "Make each section feel purposeful and context-aware, not generic filler.";
+    }
+
+    private function buildCompetitorGuidanceBlock(array $product): string
+    {
+        $insights = is_array($product['competitor_insights'] ?? null) ? (array) $product['competitor_insights'] : [];
+        if ($insights === []) {
+            return '';
+        }
+
+        return "Use competitor_insights to outperform top 10 results in structure and depth.\n"
+            . "You may borrow topical ideas and heading patterns, but never copy text verbatim.\n"
+            . "Never mention competitor brands or competitor store details.\n"
+            . "Keep all output faithful to merchant brand/context and product data only.";
     }
 
     /**
