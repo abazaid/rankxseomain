@@ -1,0 +1,13 @@
+{
+    "name": "rankxseo/standalone-seo",
+    "description": "RankX SEO Standalone SaaS Platform",
+    "type": "project",
+    "require": {
+        "php": ">=8.0"
+    },
+    "config": {
+        "platform": {
+            "php": "8.0"
+        }
+    }
+}

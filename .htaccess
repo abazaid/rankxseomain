@@ -1,0 +1,13 @@
+RewriteEngine On
+
+# Ensure consistent UTF-8 charset for static/text responses.
+AddDefaultCharset UTF-8
+AddCharset UTF-8 .js .mjs .css .json .html .txt
+
+# Let Apache/LiteSpeed serve existing files and directories directly.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Send all application routes through the front controller.
+RewriteRule ^ index.php [L,QSA]

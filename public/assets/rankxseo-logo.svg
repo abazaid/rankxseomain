@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 180" role="img" aria-label="RankX SEO logo">
+  <defs>
+    <style>
+      .rank { fill: #ff3c39; font-family: "Tajawal", "Segoe UI", Arial, sans-serif; font-weight: 800; }
+      .seo { fill: #4b36d7; font-family: "Tajawal", "Segoe UI", Arial, sans-serif; font-weight: 800; }
+    </style>
+  </defs>
+  <rect width="520" height="180" fill="none"/>
+  <g transform="translate(18,122)">
+    <text class="rank" x="0" y="0" font-size="96">Rank</text>
+    <text class="seo" x="206" y="0" font-size="96">SE</text>
+    <text class="seo" x="346" y="0" font-size="96">O</text>
+  </g>
+  <g transform="translate(368,67)">
+    <circle cx="56" cy="52" r="30" fill="none" stroke="#ff3c39" stroke-width="10"/>
+    <path d="M40 52 53 65 79 35" fill="none" stroke="#4b36d7" stroke-linecap="round" stroke-linejoin="round" stroke-width="9"/>
+    <path d="M82 12h26v26" fill="none" stroke="#4b36d7" stroke-linecap="round" stroke-width="9"/>
+    <path d="M86 35 108 12" fill="none" stroke="#4b36d7" stroke-linecap="round" stroke-width="9"/>
+    <path d="M70 81 103 112" fill="none" stroke="#ff3c39" stroke-linecap="round" stroke-width="10"/>
+  </g>
+</svg>
+

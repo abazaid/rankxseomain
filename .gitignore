@@ -1,0 +1,25 @@
+# Secrets and environment
+.env
+.env.*
+!.env.example
+
+# Runtime storage
+storage/*.json
+public/storage/*.json
+storage/*.log
+public/storage/*.log
+
+# Keep folders in git
+!storage/.gitkeep
+!public/storage/.gitkeep
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Archives
+*.zip
+*.tar
+*.gz
