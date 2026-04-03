@@ -720,41 +720,23 @@ Return ONLY clean HTML without any labels, comments, or explanations.',
                 'content' => [
                     [
                         'type' => 'input_text',
-                        'text' => 'You are a veteran ecommerce SEO strategist with 50+ years of practical experience. Your mission is to maximize ranking potential and push this product toward position #1 through superior structure, intent-match, and usefulness. Return valid JSON with EXACTLY these keys: description, metadata_title, metadata_description, seo_slug.
+                        'text' => 'You are a veteran ecommerce SEO strategist with 50+ years of practical experience.
+Primary objective: produce the strongest useful content for ranking + conversion while staying factual.
+Merchant instructions are the highest-priority source of truth and must be followed strictly.
+Return valid JSON with EXACTLY these keys: description, metadata_title, metadata_description, seo_slug.
 
-DESCRIPTION STRUCTURE (CRITICAL):
-1. Start with introduction paragraph (no heading)
-2. Use <h2> for ALL section headings
-3. Use <p> for paragraphs, <ul><li> for bullets
-4. Use <strong> for key terms
-5. Use <a href="...">...</a> ONLY for internal links
-6. NEVER use markdown, emojis, or "H2:" labels
-7. NEVER fabricate specs - only use provided data
-8. Target 800-1200 words minimum
+Formatting rules:
+- description must be clean HTML only (no markdown).
+- Use <h2>, <h3>, <p>, <ul><li>, <strong>, and internal <a href="..."> links only.
+- No external links.
+- No fabricated specs or claims.
+- Keep text natural, useful, and non-repetitive.
 
-MANDATORY SECTION ORDER (DO NOT SKIP):
-1. Introduction (no heading)
-2. <h2>نظرة عامة على المنتج</h2>
-3. <h2>أهم المميزات</h2> (bullets)
-4. <h2>المواصفات</h2>
-5. <h2>التصميم وجودة التصنيع</h2>
-6. <h2>الأداء وتجربة الاستخدام</h2>
-7. <h2>تقييمنا للمنتج</h2>
-8. <h2>طريقة الاستخدام</h2>
-9. <h2>لماذا يختار العملاء هذا المنتج</h2>
-10. <h2>لمن يناسب هذا المنتج</h2>
-11. <h2>لماذا تشتري من متجرنا</h2>
-12. <h2>منتجات قد تهمك</h2> (with links)
-13. <h2>الأسئلة الشائعة</h2>
-
-METADATA: metadata_title (50-60 chars, start with product name), metadata_description (140-155 chars, include product name and CTA).
-SEO PAGE URL: seo_slug must be generated from the product name only (no extra words), lowercase, hyphen-separated, URL-safe, supports Arabic/English mixed names, max 90 chars.
-
-COMPETITOR MODE (when competitor_insights is provided):
-- Analyze competitor patterns to produce stronger, richer structure and coverage.
-- Do NOT copy competitor brand names, store names, proprietary claims, or misleading facts.
-- Keep content aligned with merchant identity and provided business profile only.
-- Use competitor data as inspiration for structure and missing angles only.',
+Competitor mode (when competitor_insights is provided):
+- Analyze top 10 competitors to identify missing value and improve structure, depth, and intent match.
+- Use competitor data as analysis input, never copy text verbatim.
+- Never mention competitor brands/stores in output.
+- Keep output aligned with merchant identity, brand voice, and provided business profile.',
                     ],
                 ],
             ],
@@ -813,14 +795,14 @@ COMPETITOR MODE (when competitor_insights is provided):
 
     private function buildNaturalWritingBlock(): string
     {
-        return "Write in a genuinely human, editorial style that feels natural to Arabic readers in Saudi Arabia.\n"
-            . "Vary sentence length and rhythm: mix short and medium sentences, and avoid repetitive openings.\n"
-            . "Use concrete, product-specific details and practical phrasing instead of generic marketing wording.\n"
-            . "Avoid robotic connectors and over-structured transitions (e.g., repetitive 'أولاً/ثانياً/ثالثاً' unless truly needed).\n"
-            . "Do not sound like a template. Each paragraph should add a distinct, useful point.\n"
-            . "Use natural lexical variation and avoid repeating the same adjectives and sentence patterns.\n"
-            . "Keep claims factual, balanced, and credible; avoid exaggerated promises.\n"
-            . "Maintain brand voice and audience-fit, while keeping readability and clarity as top priorities.";
+        return "اكتب المحتوى بأسلوب بشري طبيعي يناسب العميل السعودي، وبنبرة واضحة وغير متكلفة.\n"
+            . "نوع في طول الجمل وتجنب التكرار أو النمط الواحد.\n"
+            . "اشرح الاستخدام الفعلي والفائدة العملية بدل الوصف العام.\n"
+            . "قدّم رأيًا مهنيًا واقعيًا بدون مبالغة أو ادعاءات غير مؤكدة.\n"
+            . "تجنب الحشو والجمل التسويقية الفارغة.\n"
+            . "اجعل كل فقرة تضيف قيمة جديدة للقارئ.\n"
+            . "التزم بالحقائق المتاحة فقط ولا تخترع معلومات.\n"
+            . "الهدف: محتوى موثوق ومقنع وقابل للتحويل.";
     }
 
     private function buildCompetitorGuidanceBlock(array $product): string
@@ -830,13 +812,14 @@ COMPETITOR MODE (when competitor_insights is provided):
             return '';
         }
 
-        return "Use competitor_insights to outperform top 10 results in structure and depth.\n"
-            . "You may borrow topical ideas and heading patterns, but never copy text verbatim.\n"
-            . "Never mention competitor brands or competitor store details.\n"
-            . "Keep all output faithful to merchant brand/context and product data only.\n"
-            . "Extract heading intent from common_h2_patterns/top_pages_analysis and convert it into better original headings.\n"
-            . "Include at least 4 useful <h3> subheadings distributed across the main sections when competitor_insights is present.\n"
-            . "Create stronger, clearer metadata by comparing competitor title/description patterns, then improving clarity, intent match, and CTR potential.";
+        return "وضع المنافسين مفعل: أنت خبير SEO عالي الخبرة ومهمتك إنتاج محتوى يتفوق على أفضل 10 نتائج.\n"
+            . "التزم أولًا بتعليمات SEO الخاصة بالمتجر كمرجع إلزامي.\n"
+            . "استخدم تحليل المنافسين لاستخراج الفجوات وبناء محتوى أقوى قيمةً وفائدةً.\n"
+            . "لا تنسخ نص المنافسين حرفيًا، ولا تذكر أسماء متاجرهم أو علاماتهم.\n"
+            . "استفد من أنماط العناوين H2/H3 لديهم، ثم قدم نسخة أصلية أفضل بصياغة بشرية.\n"
+            . "ركز على الفائدة العملية التي تساعد المستخدم على قرار الشراء.\n"
+            . "حسّن Meta Title وMeta Description بناءً على المقارنة مع نتائج المنافسين.\n"
+            . "الهدف: محتوى موثوق، مفيد، أقوى من السوق، ويحافظ على هوية المتجر.";
     }
 
     private function buildCompetitorInputBlock(array $product): string

@@ -178,11 +178,6 @@ final class StandaloneController
             return;
         }
 
-        $quotaByType = [
-            'product' => 'product_description',
-            'brand' => 'brand_seo',
-            'category' => 'category_seo',
-        ];
         $modeByType = [
             'product' => 'description',
             'brand' => 'brand_seo',
@@ -191,13 +186,14 @@ final class StandaloneController
 
         $manager = new SubscriptionManager();
         $store = $manager->refreshPeriodIfNeeded($store);
-        $quotaType = $quotaByType[$type];
         $generationCost = $competitorBoost ? self::PRODUCT_COMPETITOR_POINTS : self::GENERATION_POINTS;
-        if (!$manager->canOptimize($store, $quotaType, $generationCost)) {
+        if (!$manager->canSpendPoints($store, $generationCost)) {
+            $summary = $manager->summary($store);
+            $remaining = (int) ($summary['remaining_products'] ?? 0);
             Response::json([
                 'success' => false,
-                'message' => 'Quota exceeded for this feature.',
-                'subscription' => $manager->summary($store),
+                'message' => 'نقاطك الحالية غير كافية لهذه العملية. المطلوب ' . $generationCost . ' نقاط، والمتبقي ' . $remaining . ' نقطة.',
+                'subscription' => $summary,
             ], 402);
             return;
         }
@@ -359,11 +355,13 @@ final class StandaloneController
 
         $manager = new SubscriptionManager();
         $store = $manager->refreshPeriodIfNeeded($store);
-        if (!$manager->canOptimize($store, 'keyword_research', self::GENERATION_POINTS)) {
+        if (!$manager->canSpendPoints($store, self::GENERATION_POINTS)) {
+            $summary = $manager->summary($store);
+            $remaining = (int) ($summary['remaining_products'] ?? 0);
             Response::json([
                 'success' => false,
-                'message' => 'Keyword quota exceeded.',
-                'subscription' => $manager->summary($store),
+                'message' => 'نقاطك الحالية غير كافية لبحث الكلمات المفتاحية. المطلوب 1 نقطة، والمتبقي ' . $remaining . ' نقطة.',
+                'subscription' => $summary,
             ], 402);
             return;
         }
@@ -497,11 +495,13 @@ final class StandaloneController
 
         $manager = new SubscriptionManager();
         $store = $manager->refreshPeriodIfNeeded($store);
-        if (!$manager->canOptimize($store, 'domain_seo', self::DOMAIN_SEO_POINTS)) {
+        if (!$manager->canSpendPoints($store, self::DOMAIN_SEO_POINTS)) {
+            $summary = $manager->summary($store);
+            $remaining = (int) ($summary['remaining_products'] ?? 0);
             Response::json([
                 'success' => false,
-                'message' => 'Domain SEO quota exceeded.',
-                'subscription' => $manager->summary($store),
+                'message' => 'نقاطك الحالية غير كافية لتحليل الدومين. المطلوب 3 نقاط، والمتبقي ' . $remaining . ' نقطة.',
+                'subscription' => $summary,
             ], 402);
             return;
         }
@@ -853,190 +853,57 @@ final class StandaloneController
 
     private function defaultSettings(): array
     {
+        $defaultGlobalInstructions = <<<'TEXT'
+You are a professional content writer and digital marketing expert.
+Write high-quality content for Saudi customers in a natural human style based on practical understanding and analysis.
+
+Mission:
+Create high-value content (product description or article) that helps customers decide clearly, adds real value,
+and improves SEO without keyword stuffing or exaggeration.
+
+Core rules:
+1) Write to a real person, not in robotic/formal style.
+2) Vary sentence length and phrasing.
+3) Focus on practical benefits and real usage.
+4) Add realistic expert insight without hype.
+5) Avoid empty marketing phrases and repetition.
+6) Do not copy competitors and do not invent specs.
+7) Use keywords naturally and keep readability first.
+8) Do not add external links. Internal links only when needed.
+
+Final goal:
+Human-like trustworthy content that improves SEO and conversion.
+Rely on market understanding and user behavior, not generic filler.
+TEXT;
+
+        $defaultProductInstructions = <<<'TEXT'
+Write premium product content in a natural human style.
+
+Instructions:
+- Keep it natural and not overly perfect.
+- Add practical expert perspective.
+- Explain real usage, not only specs.
+- Use clear linguistic variation to avoid template-like writing.
+- Make the reader feel the text is written directly for them.
+- Focus on true value over decorative wording.
+
+Forbidden:
+- Filler.
+- Repetition.
+- Generic claims like "high quality" without proof.
+
+Goal:
+Trust-building content that drives conversions.
+TEXT;
+
         return [
             'output_language' => 'ar',
-            'global_instructions' => "اكتب محتوى عربي احترافي موجه للعميل السعودي.
-ركّز على مساعدة العميل في اتخاذ قرار الشراء.
-اجعل النص:
-- واضح
-- سهل القراءة
-- عملي (يفيد العميل فعليًا)
-
-القواعد:
-- لا تنسخ من المنافسين
-- لا تخترع معلومات أو مواصفات
-- استخدم اسم المنتج + البراند بشكل طبيعي
-- ركّز على الفوائد (مو الوصف فقط)
-- تجنب الحشو والكلمات الفارغة
-- لا تذكر مواقع أو منافسين
-- لا تضع روابط خارجية (فقط روابط داخلية)
-
-الهدف:
-- رفع التحويل (Conversion)
-- تحسين SEO",
-            'product_description_instructions' => "🧩 أهم نقطة: تحديد نوع المنتج
-
-قبل كتابة أي وصف لازم تحدد نوع المنتج:
-• ملابس (رجالي / نسائي)
-• أحذية
-• إكسسوارات
-• إلكترونيات
-• أدوات منزلية
-
-🧠 قواعد حسب نوع المنتج (عام)
-
-إذا المنتج ملابس:
-ركّز على:
-- الخامة
-- المقاس
-- الراحة
-- الاستخدام (يومي / رسمي)
-
-إذا المنتج إلكتروني:
-ركّز على:
-- الأداء
-- المواصفات
-- الاستخدام العملي
-
-إذا المنتج تجميلي:
-ركّز على:
-- النتائج
-- المكونات
-- الأمان
-
-القاعدة الذهبية:
-👉 كل نوع له زاوية بيع مختلفة — لا تكتب وصف عام
-
-🧾 وصف المنتج (الزبدة العملية)
-
-الهدف:
-- محتوى مقنع + SEO
-- يساعد العميل يشتري
-
-الطول:
-800 – 1200 كلمة (أو أقل بدون حشو)
-
-🔗 الربط الداخلي (الزبدة)
-استخدم 2–3 روابط فقط من نفس المتجر مرتبطة مباشرة بالمنتج
-مثال (ملابس):
-- رابط فئة (فساتين)
-- رابط براند
-- رابط منتج مشابه
-
-🧱 هيكل الوصف (مهم جدًا)
-
-1. مقدمة (بدون عنوان)
-   - تعريف بالمنتج
-   - اسم المنتج
-   - البراند
-   - أهم ميزة
-
-2. H2: نظرة عامة على المنتج
-   - الشركة
-   - الفئة
-   - الاستخدام
-
-3. H2: أهم المميزات
-   - نقاط Bullet فقط
-
-4. H2: المواصفات
-   - فقط معلومات مؤكدة
-
-5. H2: التصميم وجودة التصنيع
-   - الشكل
-   - الخامة
-   - الراحة
-
-6. H2: الأداء وتجربة الاستخدام
-   (حسب نوع المنتج)
-   مثال ملابس:
-   - الراحة
-   - الحركة
-   - الاستخدام اليومي
-
-7. H2: تقييمنا للمنتج
-   - رأي واقعي بدون مبالغة
-
-8. H2: طريقة الاستخدام
-   - كيف يستخدم المنتج
-
-9. H2: مقارنة مع منتجات مشابهة
-   - فرق حقيقي فقط
-
-10. H2: لماذا يختار العملاء هذا المنتج
-    - نقاط إقناع
-
-11. H2: لمن يناسب هذا المنتج
-    - تحديد الجمهور
-
-12. H2: لماذا تشتري من متجرنا
-    - سرعة الشحن
-    - جودة
-    - ضمان
-
-13. H2: منتجات قد تهمك
-    - روابط داخلية فقط
-
-14. H2: الأسئلة الشائعة
-    - 5–7 أسئلة حقيقية
-
-⚠️ أهم الأخطاء (لازم تتجنبها)
-
-❌ كتابة وصف عام يصلح لأي منتج
-❌ اختراع مواصفات
-❌ تكرار الكلمات المفتاحية
-❌ حشو بدون فائدة
-❌ نسخ من المنافسين",
-            'meta_title_instructions' => "🏷️ Meta Title
-المطلوب:
-- 50-60 حرف
-- يبدأ باسم المنتج
-
-الصيغة: اسم المنتج + الفئة + ميزة قوية
-
-مثال (ملابس):
-فستان سهرة ساتان نسائي تصميم أنيق وقصة مريحة
-
-مثال (إلكترونيات):
-سماعة بلوتوث لاسلكية بجودة صوت عالية وعمر بطارية طويل
-
-تجنب:
-- التكرار
-- الكلمات المبالغ فيها
-- الحشو",
-            'meta_description_instructions' => "📝 Meta Description
-المطلوب:
-- 140-155 حرف
-- يحتوي اسم المنتج
-- يحفّز على الشراء
-
-الصيغة: اشتري + المنتج + ميزة + فائدة + عنصر ثقة
-
-مثال (ملابس):
-اشتري فستان سهرة ساتان نسائي بتصميم أنيق وخامة ناعمة مريحة. مثالي للمناسبات ويوفر لك إطلالة راقية بجودة عالية.
-
-مثال (إلكترونيات):
-اشتري سماعة بلوتوث لاسلكية بصوت واضح ونقي مع عزل ضوضاء متقدم. بطارية تدوم 24 ساعة وشحن سريع عبر USB-C.
-
-تجنب:
-- التكرار
-- الكلمات المبالغ فيها
-- الحشو",
-            'image_alt_instructions' => "🖼️ ALT للصور - القاعدة الذهبية:
-\"كل نوع له زاوية بيع مختلفة\"
-
-أمثلة حسب نوع المنتج:
-• ملابس: \"صورة فستان سهرة نسائي ساتان أرجواني، تصميم سهرة أنيق\"
-• إلكترونيات: \"سماعة بلوتوث لاسلكية بيضاء مع علبة شحن\"
-• تجميلي: \"عبوة كريم مرطب للوجه 50ml بتركيبة فيتامين E\"
-
-القواعد:
-- دقيق: يصف الصورة بشكل صحيح
-- طبيعي: يبدو كجملة عادية
-- واضح: يفهم منه محتوى الصورة
-- يتضمن اسم المنتج عند الإمكان
-- 70-125 حرف تقريبًا",
-            'seo_page_url_instructions' => "رابط صفحة المنتج (SEO Page URL)\nالقاعدة:\n- يتم توليد الرابط من اسم المنتج أو التصنيف أو الماركة فقط.\n- بدون أي إضافات تسويقية أو كلمات زائدة.\n- يسمح بدمج عربي + English إذا الاسم يحتوي ذلك.\n- استخدم شرطة - بين الكلمات بدل المسافات.\n- الرابط النهائي لا يتجاوز 90 حرفًا.",
+            'global_instructions' => $defaultGlobalInstructions,
+            'product_description_instructions' => $defaultProductInstructions,
+            'meta_title_instructions' => 'Meta Title: clear and direct, around 50-60 characters, start with product name or main keyword.',
+            'meta_description_instructions' => 'Meta Description: compelling concise text around 140-155 characters with real value and clear CTA.',
+            'image_alt_instructions' => 'ALT text: describe image and product accurately in natural wording with no stuffing.',
+            'seo_page_url_instructions' => 'SEO Page URL: generate from product/category/brand name only, lowercase, hyphen-separated, max 90 chars.',
             'store_seo_instructions' => $this->getDefaultStoreSeoInstructions(),
             'brand_seo_instructions' => $this->getDefaultBrandSeoInstructions(),
             'category_seo_instructions' => $this->getDefaultCategorySeoInstructions(),

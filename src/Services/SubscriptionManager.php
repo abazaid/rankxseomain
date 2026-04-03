@@ -83,6 +83,28 @@ final class SubscriptionManager
         return ($used + $cost) <= $quota;
     }
 
+    public function canSpendPoints(array $store, int $cost = 1): bool
+    {
+        $subscription = $store['subscription'] ?? [];
+        $status = (string) ($subscription['status'] ?? 'inactive');
+        if (!in_array($status, ['active', 'trial'], true)) {
+            return false;
+        }
+
+        $cost = max(1, $cost);
+        $quota = (int) ($subscription['product_quota'] ?? 0);
+        $used = (int) ($subscription['used_products'] ?? 0);
+
+        if ($quota <= 0) {
+            $plan = Plans::get((string) ($subscription['plan_name'] ?? Plans::BUDGET_TRIAL));
+            if ($plan !== null) {
+                $quota = (int) array_sum((array) ($plan['quotas'] ?? []));
+            }
+        }
+
+        return ($used + $cost) <= $quota;
+    }
+
     public function recordOptimization(array $store, int $productId, ?string $productName, string $mode = 'all', string $status = 'completed', ?int $cost = null): array
     {
         $merchantId = (string) ($store['merchant_id'] ?? '');
