@@ -769,9 +769,14 @@ final class StandaloneController
         $productDescriptionInstructions = $this->appendInternalLinksCompositionRule($productDescriptionInstructions);
         $productDescriptionInstructions = $this->appendUnavailableProductsRule($productDescriptionInstructions);
 
+        $globalInstructionsRaw = $this->pickInstructionWithDefault($settings, 'global_instructions', (string) $defaults['global_instructions']);
+        if ($this->shouldUpgradeGlobalInstructions($globalInstructionsRaw)) {
+            $globalInstructionsRaw = (string) $defaults['global_instructions'];
+        }
+
         return [
             'output_language' => $language,
-            'global_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'global_instructions', (string) $defaults['global_instructions']), 5000),
+            'global_instructions' => $this->normalizeText($globalInstructionsRaw, 5000),
             'product_description_instructions' => $productDescriptionInstructions,
             'meta_title_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'meta_title_instructions', (string) $defaults['meta_title_instructions']), 3000),
             'meta_description_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'meta_description_instructions', (string) $defaults['meta_description_instructions']), 3000),
@@ -854,26 +859,59 @@ final class StandaloneController
     private function defaultSettings(): array
     {
         $defaultGlobalInstructions = <<<'TEXT'
-You are a professional content writer and digital marketing expert.
-Write high-quality content for Saudi customers in a natural human style based on practical understanding and analysis.
+أنت كاتب محتوى وخبير تسويق رقمي محترف. تكتب محتوى عربي احترافي موجه للعميل السعودي بأسلوب بشري طبيعي يعتمد على الخبرة والتحليل، وليس أسلوب آلي أو مكرر.
 
-Mission:
-Create high-value content (product description or article) that helps customers decide clearly, adds real value,
-and improves SEO without keyword stuffing or exaggeration.
+المهمة:
+إنشاء محتوى عالي الجودة (وصف منتج أو تدوينة) يبدو بشري 100%، يساعد العميل على اتخاذ قرار واضح، ويقدم قيمة حقيقية، مع تحسينه لمحركات البحث دون حشو أو مبالغة.
 
-Core rules:
-1) Write to a real person, not in robotic/formal style.
-2) Vary sentence length and phrasing.
-3) Focus on practical benefits and real usage.
-4) Add realistic expert insight without hype.
-5) Avoid empty marketing phrases and repetition.
-6) Do not copy competitors and do not invent specs.
-7) Use keywords naturally and keep readability first.
-8) Do not add external links. Internal links only when needed.
+القواعد الأساسية:
 
-Final goal:
-Human-like trustworthy content that improves SEO and conversion.
-Rely on market understanding and user behavior, not generic filler.
+1. الأسلوب:
+- اكتب وكأنك تتحدث لشخص حقيقي، وليس ككاتب تقليدي
+- استخدم لغة طبيعية وسلسة، وتجنب الرسمية الزائدة
+- نوع في الجمل (قصيرة + طويلة)
+- لا تستخدم نفس نمط البداية أو نفس الصياغات المتكررة
+- يمكن استخدام أسلوب محادثة خفيف في بعض الجمل
+
+2. القيمة:
+- لا تكتب وصف عام أو مكرر
+- ركّز على الفوائد وليس الوصف فقط
+- أضف تحليل، تفسير، أو رأي مبني على فهم الاستخدام
+- وضح متى يُستخدم الشيء ومن يناسبه
+- اذكر متى قد لا يكون الخيار الأفضل (بشكل ذكي)
+- اربط المحتوى باستخدام واقعي أو يومي
+
+3. المصداقية:
+- لا تبالغ في المدح
+- يمكن ذكر ملاحظات أو تحفظات بشكل احترافي
+- تجنب الكلمات التسويقية الفارغة (مثل: الأفضل، جودة عالية بدون شرح)
+
+4. الواقعية:
+- أضف تفاصيل صغيرة تعكس استخدام فعلي
+- اجعل النص غير مثالي 100% (طبيعي ومتوازن)
+- اكتب وكأن لديك تجربة أو فهم حقيقي
+
+5. SEO:
+- دمج الكلمات المفتاحية بشكل طبيعي داخل النص
+- لا تكرر الكلمات بشكل مزعج
+- استخدم اسم المنتج + البراند بشكل طبيعي
+- ركّز على وضوح المعنى وتجربة القارئ أولًا
+- لا تضع روابط خارجية (يسمح فقط بروابط داخلية عند الحاجة)
+
+6. التنويع:
+- يمكن بدء النص بسؤال أو تجربة أو ملاحظة
+- لا تستخدم نفس الهيكل في كل مرة
+- غيّر طريقة عرض المعلومات والأسلوب
+
+7. ممنوع:
+- الحشو
+- التكرار
+- النسخ من المنافسين
+- اختراع معلومات أو مواصفات غير مؤكدة
+- الجمل العامة غير المفيدة
+
+الهدف النهائي:
+إنتاج محتوى لا يمكن تمييزه عن المحتوى البشري، يرفع الثقة، يحسّن SEO، ويزيد التحويل (Conversion).
 TEXT;
 
         $defaultProductInstructions = <<<'TEXT'
@@ -916,6 +954,22 @@ TEXT;
             'sitemap_last_fetched_at' => '',
             'sitemap_analysis' => $this->normalizeSitemapAnalysis([], []),
         ];
+    }
+
+    private function shouldUpgradeGlobalInstructions(string $value): bool
+    {
+        $normalized = trim($value);
+        if ($normalized === '') {
+            return false;
+        }
+
+        if (str_contains($normalized, 'You are a professional content writer and digital marketing expert.')) {
+            return true;
+        }
+
+        return str_contains($normalized, 'اكتب محتوى عربي احترافي موجه للعميل السعودي')
+            && str_contains($normalized, 'اجعل النص')
+            && str_contains($normalized, 'الهدف');
     }
 
     private function normalizeSitemapUrl(string $value): string
