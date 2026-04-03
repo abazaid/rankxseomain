@@ -336,6 +336,8 @@ final class OpenAIClient
         }
         $globalInstructions = trim((string) ($settings['global_instructions'] ?? ''));
         $brandSeoInstructions = trim((string) ($settings['brand_seo_instructions'] ?? ''));
+        $metaTitleInstructions = trim((string) ($settings['meta_title_instructions'] ?? ''));
+        $metaDescriptionInstructions = trim((string) ($settings['meta_description_instructions'] ?? ''));
         $businessContextBlock = $this->buildBusinessContextBlock($settings);
 
         $response = $this->httpClient->post(self::API_BASE . '/responses', [
@@ -367,13 +369,16 @@ Brand Information:
 Rules:
 - Write compelling meta_title (max 60 characters)
 - Write meta_description (max 160 characters)
-- Write a rich brand description (2-3 paragraphs)
+- Write a rich brand description in HTML (use <h2>, <h3>, <p>, <ul><li>, <strong>)
 - Include brand story, values, and what makes it special
 - Target Saudi Arabian market
 - Use natural Arabic
+- Keep content strictly relevant to the merchant business profile and brand keyword (no generic filler)
 "
                                 . $this->buildInstructionBlock('Global instructions', $globalInstructions)
                                 . $this->buildInstructionBlock('Merchant business profile', $businessContextBlock)
+                                . $this->buildInstructionBlock('Meta Title rules', $metaTitleInstructions)
+                                . $this->buildInstructionBlock('Meta Description rules', $metaDescriptionInstructions)
                                 . $this->buildInstructionBlock('Brand SEO instructions', $brandSeoInstructions)
                                 . "\nReturn ONLY JSON: {\"meta_title\": \"...\", \"meta_description\": \"...\", \"description\": \"...\"}",
                         ],
@@ -398,10 +403,19 @@ Rules:
             throw new RuntimeException('OpenAI returned invalid JSON for brand SEO.');
         }
 
+        $description = trim((string) (
+            $decoded['description']
+            ?? $decoded['brand_description']
+            ?? ''
+        ));
+        if ($description === '') {
+            throw new RuntimeException('OpenAI returned empty brand description content.');
+        }
+
         return [
             'meta_title' => $this->limitText(trim((string) ($decoded['meta_title'] ?? '')), 60),
             'meta_description' => $this->limitText(trim((string) ($decoded['meta_description'] ?? '')), 160),
-            'description' => trim((string) ($decoded['description'] ?? '')),
+            'description' => $this->ensureHtmlDescription($description),
             '_usage' => is_array($body['usage'] ?? null) ? $body['usage'] : [],
             '_model' => $model,
         ];
@@ -423,6 +437,8 @@ Rules:
         }
         $globalInstructions = trim((string) ($settings['global_instructions'] ?? ''));
         $categorySeoInstructions = trim((string) ($settings['category_seo_instructions'] ?? ''));
+        $metaTitleInstructions = trim((string) ($settings['meta_title_instructions'] ?? ''));
+        $metaDescriptionInstructions = trim((string) ($settings['meta_description_instructions'] ?? ''));
         $businessContextBlock = $this->buildBusinessContextBlock($settings);
 
         $response = $this->httpClient->post(self::API_BASE . '/responses', [
@@ -445,7 +461,7 @@ Rules:
                     'content' => [
                         [
                             'type' => 'input_text',
-                            'text' => "Generate SEO-optimized meta tags for a category in language={$language}.
+                            'text' => "Generate SEO-optimized category content in language={$language}.
 
 Category Information:
 - Name: " . ($category['name'] ?? 'Category') . "
@@ -455,14 +471,18 @@ Category Information:
 Rules:
 - Write compelling meta_title (max 60 characters)
 - Write meta_description (max 160 characters)
+- Write a category description in HTML (use <h2>, <h3>, <p>, <ul><li>, <strong>)
 - Target Saudi Arabian market
 - Use natural Arabic
 - Focus on the category name and what products it contains
+- Keep content strictly relevant to the merchant business profile and category keyword (no generic filler)
 "
                                 . $this->buildInstructionBlock('Global instructions', $globalInstructions)
                                 . $this->buildInstructionBlock('Merchant business profile', $businessContextBlock)
+                                . $this->buildInstructionBlock('Meta Title rules', $metaTitleInstructions)
+                                . $this->buildInstructionBlock('Meta Description rules', $metaDescriptionInstructions)
                                 . $this->buildInstructionBlock('Category SEO instructions', $categorySeoInstructions)
-                                . "\nReturn ONLY JSON: {\"meta_title\": \"...\", \"meta_description\": \"...\"}",
+                                . "\nReturn ONLY JSON: {\"meta_title\": \"...\", \"meta_description\": \"...\", \"description\": \"...\"}",
                         ],
                     ],
                 ],
@@ -485,9 +505,19 @@ Rules:
             throw new RuntimeException('OpenAI returned invalid JSON for category SEO.');
         }
 
+        $description = trim((string) (
+            $decoded['description']
+            ?? $decoded['category_description']
+            ?? ''
+        ));
+        if ($description === '') {
+            throw new RuntimeException('OpenAI returned empty category description content.');
+        }
+
         return [
             'meta_title' => $this->limitText(trim((string) ($decoded['meta_title'] ?? '')), 60),
             'meta_description' => $this->limitText(trim((string) ($decoded['meta_description'] ?? '')), 160),
+            'description' => $this->ensureHtmlDescription($description),
             '_usage' => is_array($body['usage'] ?? null) ? $body['usage'] : [],
             '_model' => $model,
         ];

@@ -492,6 +492,59 @@ final class View
       margin-bottom: 20px;
       flex-wrap: wrap;
     }
+    .generated-result-rendered {
+      min-height: 220px;
+      max-height: 420px;
+      overflow: auto;
+      background: var(--surface-strong);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 14px;
+      line-height: 1.9;
+      font-size: 16px;
+    }
+    .generated-result-rendered h1,
+    .generated-result-rendered h2,
+    .generated-result-rendered h3,
+    .generated-result-rendered h4 {
+      margin: 0 0 10px;
+      line-height: 1.5;
+      color: var(--text-main);
+    }
+    .generated-result-rendered p,
+    .generated-result-rendered ul,
+    .generated-result-rendered ol {
+      margin: 0 0 10px;
+    }
+    .generated-result-rendered ul,
+    .generated-result-rendered ol {
+      padding-inline-start: 18px;
+    }
+    .copy-toast {
+      position: fixed;
+      top: 18px;
+      left: 18px;
+      z-index: 1200;
+      padding: 12px 16px;
+      border-radius: 12px;
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
+      opacity: 0;
+      transform: translateY(-8px);
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .copy-toast.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .copy-toast.success {
+      background: linear-gradient(135deg, #10B981, #059669);
+    }
+    .copy-toast.error {
+      background: linear-gradient(135deg, #F43F5E, #E11D48);
+    }
     .compare-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));

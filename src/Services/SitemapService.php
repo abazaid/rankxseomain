@@ -8,8 +8,8 @@ use RuntimeException;
 
 final class SitemapService
 {
-    private const MAX_SITEMAPS = 8;
-    private const MAX_URLS = 1500;
+    private const MAX_SITEMAPS = 30;
+    private const MAX_URLS = 10000;
 
     public function __construct(
         private readonly HttpClient $httpClient = new HttpClient()

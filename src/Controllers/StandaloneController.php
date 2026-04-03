@@ -18,6 +18,8 @@ use App\Support\Response;
 
 final class StandaloneController
 {
+    private const MAX_SITEMAP_LINKS_CACHE = 10000;
+
     public function subscription(): void
     {
         $store = $this->resolveStore();
@@ -220,7 +222,7 @@ final class StandaloneController
                 $result = $openAI->generateBrandSeo($payload, $settings);
                 $generated = [
                     'title' => $keyword,
-                    'description' => $context,
+                    'description' => (string) ($result['description'] ?? ''),
                     'meta_title' => (string) ($result['meta_title'] ?? ''),
                     'meta_description' => (string) ($result['meta_description'] ?? ''),
                 ];
@@ -234,7 +236,7 @@ final class StandaloneController
                 $result = $openAI->generateCategorySeo($payload, $settings);
                 $generated = [
                     'title' => $keyword,
-                    'description' => $context,
+                    'description' => (string) ($result['description'] ?? ''),
                     'meta_title' => (string) ($result['meta_title'] ?? ''),
                     'meta_description' => (string) ($result['meta_description'] ?? ''),
                 ];
@@ -986,7 +988,7 @@ final class StandaloneController
                 'type' => trim((string) ($item['type'] ?? 'page')),
             ];
 
-            if (count($rows) >= 1500) {
+            if (count($rows) >= self::MAX_SITEMAP_LINKS_CACHE) {
                 break;
             }
         }

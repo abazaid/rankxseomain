@@ -269,9 +269,11 @@ if ($appBasePath === '/') {
         <div class="card surface-soft" style="box-shadow:none;">
           <div class="section-head" style="margin-bottom:10px;">
             <h3 style="margin:0;">وصف المحتوى</h3>
-            <button class="btn btn-secondary" type="button" data-copy-target="generated-result-description">نسخ الوصف</button>
+            <button class="btn btn-secondary" type="button" data-copy-target="generated-result-description-html">نسخ الوصف</button>
           </div>
-          <textarea id="generated-result-description" rows="10" readonly></textarea>
+          <input id="generated-result-description-html" type="hidden" value="">
+          <div id="generated-result-description-rendered" class="generated-result-rendered"></div>
+          <div id="generated-result-copy-alert"></div>
         </div>
         <div class="grid" style="margin-top:0;">
           <div class="card surface-soft" style="box-shadow:none;">
