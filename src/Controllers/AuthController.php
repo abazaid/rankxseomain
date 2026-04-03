@@ -19,23 +19,23 @@ final class AuthController
     public function loginForm(): void
     {
         if (!Database::isAvailable()) {
-            Response::html(View::render('Login', '<div class="card"><h1>Login</h1><p class="muted">Database is not available yet.</p></div>'));
+            Response::html(View::render('تسجيل الدخول', '<div class="card"><h1>تسجيل الدخول</h1><p class="muted">قاعدة البيانات غير متاحة حاليًا.</p></div>'));
             return;
         }
 
-        Response::html(View::render('Login', <<<HTML
+        Response::html(View::render('تسجيل الدخول', <<<HTML
 <div class="card" style="max-width:620px;margin:auto;">
-  <h1>Client Login</h1>
-  <p class="muted">Login using your email and password.</p>
+  <h1>دخول العميل</h1>
+  <p class="muted">سجّل دخولك باستخدام البريد الإلكتروني وكلمة المرور.</p>
   <form method="post" action="/login">
-    <label><strong>Email</strong></label>
+    <label><strong>البريد الإلكتروني</strong></label>
     <input name="email" type="email" required>
-    <label style="margin-top:10px;display:block;"><strong>Password</strong></label>
+    <label style="margin-top:10px;display:block;"><strong>كلمة المرور</strong></label>
     <input name="password" type="password" required>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
-      <button class="btn" type="submit">Login</button>
-      <a class="btn btn-secondary" href="/register">Create Account</a>
-      <a class="btn btn-secondary" href="/forgot-password">Forgot Password</a>
+      <button class="btn" type="submit">دخول</button>
+      <a class="btn btn-secondary" href="/register">إنشاء حساب</a>
+      <a class="btn btn-secondary" href="/forgot-password">نسيت كلمة المرور</a>
     </div>
   </form>
 </div>
@@ -45,26 +45,26 @@ HTML));
     public function registerForm(): void
     {
         if (!Database::isAvailable()) {
-            Response::html(View::render('Register', '<div class="card"><h1>Register</h1><p class="muted">Database is not available yet.</p></div>'));
+            Response::html(View::render('إنشاء حساب', '<div class="card"><h1>إنشاء حساب</h1><p class="muted">قاعدة البيانات غير متاحة حاليًا.</p></div>'));
             return;
         }
 
-        Response::html(View::render('Register', <<<HTML
+        Response::html(View::render('إنشاء حساب', <<<HTML
 <div class="card" style="max-width:680px;margin:auto;">
-  <h1>Create Account</h1>
-  <p class="muted">Standalone mode with direct email registration.</p>
+  <h1>إنشاء حساب جديد</h1>
+  <p class="muted">التسجيل المباشر عبر البريد الإلكتروني.</p>
   <form method="post" action="/register">
-    <label><strong>Store Name</strong></label>
+    <label><strong>اسم المتجر</strong></label>
     <input name="store_name" type="text" required>
-    <label style="margin-top:10px;display:block;"><strong>Full Name</strong></label>
+    <label style="margin-top:10px;display:block;"><strong>الاسم الكامل</strong></label>
     <input name="full_name" type="text" required>
-    <label style="margin-top:10px;display:block;"><strong>Email</strong></label>
+    <label style="margin-top:10px;display:block;"><strong>البريد الإلكتروني</strong></label>
     <input name="email" type="email" required>
-    <label style="margin-top:10px;display:block;"><strong>Password</strong></label>
+    <label style="margin-top:10px;display:block;"><strong>كلمة المرور</strong></label>
     <input name="password" type="password" minlength="8" required>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
-      <button class="btn" type="submit">Create</button>
-      <a class="btn btn-secondary" href="/login">Back To Login</a>
+      <button class="btn" type="submit">إنشاء الحساب</button>
+      <a class="btn btn-secondary" href="/login">العودة لتسجيل الدخول</a>
     </div>
   </form>
 </div>
@@ -243,29 +243,29 @@ HTML), 403);
         $token = (string) Request::query('token', '');
 
         if ($token === '' || !Database::isAvailable()) {
-            Response::html(View::render('Set Password', '<div class="card"><h1>Invalid reset link</h1></div>'), 400);
+            Response::html(View::render('إعادة تعيين كلمة المرور', '<div class="card"><h1>رابط إعادة التعيين غير صالح</h1></div>'), 400);
             return;
         }
 
         $record = (new SaaSRepository())->findValidPasswordResetToken($token);
         if ($record === null) {
-            Response::html(View::render('Set Password', '<div class="card"><h1>Reset link expired or invalid</h1></div>'), 400);
+            Response::html(View::render('إعادة تعيين كلمة المرور', '<div class="card"><h1>رابط إعادة التعيين منتهي أو غير صالح</h1></div>'), 400);
             return;
         }
 
         $safeToken = htmlspecialchars($token, ENT_QUOTES, 'UTF-8');
         $safeEmail = htmlspecialchars((string) ($record['email'] ?? ''), ENT_QUOTES, 'UTF-8');
 
-        Response::html(View::render('Set Password', <<<HTML
+        Response::html(View::render('إعادة تعيين كلمة المرور', <<<HTML
 <div class="card" style="max-width:620px;margin:auto;">
-  <h1>Set New Password</h1>
-  <p class="muted">Account: {$safeEmail}</p>
+  <h1>تعيين كلمة مرور جديدة</h1>
+  <p class="muted">الحساب: {$safeEmail}</p>
   <form method="post" action="/set-password">
     <input type="hidden" name="token" value="{$safeToken}">
-    <label><strong>New Password</strong></label>
+    <label><strong>كلمة المرور الجديدة</strong></label>
     <input name="password" type="password" minlength="8" required>
     <div style="margin-top:18px;">
-      <button class="btn" type="submit">Save Password</button>
+      <button class="btn" type="submit">حفظ كلمة المرور</button>
     </div>
   </form>
 </div>
@@ -285,14 +285,14 @@ HTML));
         $record = $repository->findValidPasswordResetToken($token);
 
         if ($record === null || strlen($password) < 8) {
-            Response::html(View::render('Set Password', '<div class="card"><h1>Could not set password</h1><p class="muted">Check token and password length.</p></div>'), 422);
+            Response::html(View::render('إعادة تعيين كلمة المرور', '<div class="card"><h1>تعذر تعيين كلمة المرور</h1><p class="muted">تأكد من صلاحية الرابط وأن كلمة المرور 8 أحرف على الأقل.</p></div>'), 422);
             return;
         }
 
         $repository->setUserPassword((int) $record['user_id'], password_hash($password, PASSWORD_DEFAULT));
         $repository->markResetTokenUsed((int) $record['id']);
 
-        Response::html(View::render('Set Password', '<div class="card"><h1>Password updated</h1><p><a class="btn" href="/login">Login</a></p></div>'));
+        Response::html(View::render('إعادة تعيين كلمة المرور', '<div class="card"><h1>تم تحديث كلمة المرور بنجاح</h1><p><a class="btn" href="/login">تسجيل الدخول</a></p></div>'));
     }
 
     public function logout(): void
@@ -303,16 +303,16 @@ HTML));
 
     public function forgotPasswordForm(): void
     {
-        Response::html(View::render('Forgot Password', <<<HTML
+        Response::html(View::render('نسيت كلمة المرور', <<<HTML
 <div class="card" style="max-width:620px;margin:auto;">
-  <h1>Forgot Password</h1>
-  <p class="muted">Enter your email and we will send a reset link.</p>
+  <h1>نسيت كلمة المرور</h1>
+  <p class="muted">أدخل بريدك الإلكتروني وسنرسل لك رابط إعادة التعيين.</p>
   <form method="post" action="/forgot-password">
-    <label><strong>Email</strong></label>
+    <label><strong>البريد الإلكتروني</strong></label>
     <input name="email" type="email" required>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
-      <button class="btn" type="submit">Send Link</button>
-      <a class="btn btn-secondary" href="/login">Back To Login</a>
+      <button class="btn" type="submit">إرسال الرابط</button>
+      <a class="btn btn-secondary" href="/login">العودة لتسجيل الدخول</a>
     </div>
   </form>
 </div>
@@ -322,7 +322,7 @@ HTML));
     public function forgotPasswordSubmit(): void
     {
         if (!Database::isAvailable()) {
-            Response::html(View::render('Forgot Password', '<div class="card"><h1>Database is not available</h1></div>'), 500);
+            Response::html(View::render('نسيت كلمة المرور', '<div class="card"><h1>قاعدة البيانات غير متاحة</h1></div>'), 500);
             return;
         }
 
@@ -343,7 +343,7 @@ HTML));
             (new Mailer())->sendPasswordReset((string) $user['email'], (string) ($user['full_name'] ?? ''), $url);
         }
 
-        Response::html(View::render('Forgot Password', '<div class="card"><h1>Request sent</h1><p class="muted">If this email exists, a reset link has been sent.</p><p><a class="btn" href="/login">Back To Login</a></p></div>'));
+        Response::html(View::render('نسيت كلمة المرور', '<div class="card"><h1>تم استلام الطلب</h1><p class="muted">إذا كان البريد مسجّلًا لدينا، فتم إرسال رابط إعادة التعيين.</p><p><a class="btn" href="/login">العودة لتسجيل الدخول</a></p></div>'));
     }
 
     public function dashboard(): void

@@ -11,6 +11,7 @@ use App\Services\OpenAICostCalculator;
 use App\Services\OpenAIClient;
 use App\Services\SubscriptionManager;
 use App\Support\Database;
+use App\Support\Plans;
 use App\Support\Request;
 use App\Support\Response;
 
@@ -498,8 +499,17 @@ final class StandaloneController
             return null;
         }
 
-        $stores = (new StoreRepository())->all();
-        return is_array($stores[$merchantId] ?? null) ? (array) $stores[$merchantId] : null;
+        $storeRepo = new StoreRepository();
+        $stores = $storeRepo->all();
+        $stored = is_array($stores[$merchantId] ?? null) ? (array) $stores[$merchantId] : null;
+        if ($stored !== null) {
+            return $stored;
+        }
+
+        $hydrated = $this->hydrateStoreFromDatabase((array) $dbStore);
+        $storeRepo->save($merchantId, $hydrated);
+
+        return $hydrated;
     }
 
     private function resolveDbStore(): ?array
@@ -538,6 +548,54 @@ final class StandaloneController
             return;
         }
         (new StoreRepository())->save($merchantId, $data);
+    }
+
+    private function hydrateStoreFromDatabase(array $dbStore): array
+    {
+        $merchantId = (string) ($dbStore['merchant_id'] ?? '');
+        $planId = Plans::mapPlanAlias((string) ($dbStore['plan_name'] ?? ''));
+        $plan = Plans::get($planId) ?? Plans::get(Plans::BUDGET_TRIAL) ?? ['quotas' => []];
+
+        $subscription = [
+            'status' => (string) ($dbStore['subscription_status'] ?? 'trial'),
+            'plan_name' => $planId,
+            'product_quota' => (int) ($dbStore['product_quota'] ?? array_sum((array) ($plan['quotas'] ?? []))),
+            'used_products' => (int) ($dbStore['used_products'] ?? 0),
+            'period_started_at' => $this->toIsoDate((string) ($dbStore['period_started_at'] ?? ''), date(DATE_ATOM)),
+            'period_ends_at' => $this->toIsoDate((string) ($dbStore['period_ends_at'] ?? ''), date(DATE_ATOM, strtotime('+30 days'))),
+            'last_event' => 'store.hydrated',
+        ];
+
+        foreach ((array) ($plan['quotas'] ?? []) as $key => $value) {
+            $subscription['quota_' . $key] = (int) $value;
+            $subscription['used_' . $key] = 0;
+        }
+
+        return [
+            'merchant_id' => $merchantId,
+            'store' => [
+                'name' => (string) ($dbStore['store_name'] ?? ''),
+                'username' => (string) ($dbStore['store_username'] ?? ''),
+            ],
+            'settings' => $this->normalizeSettings([]),
+            'subscription' => $subscription,
+            'usage_logs' => [],
+            'standalone_items' => [
+                'product' => [],
+                'brand' => [],
+                'category' => [],
+            ],
+            'created_at' => date(DATE_ATOM),
+        ];
+    }
+
+    private function toIsoDate(string $value, string $fallback): string
+    {
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            return $fallback;
+        }
+        return date(DATE_ATOM, $timestamp);
     }
 
     private function normalizeSettings(array $settings): array

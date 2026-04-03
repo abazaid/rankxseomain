@@ -20,6 +20,7 @@ final class StoreRepository
         }
 
         $this->file = rtrim($storagePath, '/\\') . '/stores.json';
+        $this->ensureStorageReady();
     }
 
     public function find(string|int $merchantId): ?array
@@ -30,6 +31,7 @@ final class StoreRepository
 
     public function save(string|int $merchantId, array $data): void
     {
+        $this->ensureStorageReady();
         $items = $this->all();
         $key = (string) $merchantId;
         $items[$key] = array_merge($items[$key] ?? [], $data);
@@ -52,5 +54,17 @@ final class StoreRepository
         $content = file_get_contents($this->file);
         $decoded = json_decode($content ?: '{}', true);
         return is_array($decoded) ? $decoded : [];
+    }
+
+    private function ensureStorageReady(): void
+    {
+        $directory = dirname($this->file);
+        if (!is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+
+        if (!is_file($this->file)) {
+            file_put_contents($this->file, '{}');
+        }
     }
 }
