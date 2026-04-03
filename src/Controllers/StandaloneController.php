@@ -242,6 +242,7 @@ final class StandaloneController
         $keyword = trim((string) ($input['keyword'] ?? ''));
         $country = strtolower(trim((string) ($input['country'] ?? 'sa')));
         $device = strtolower(trim((string) ($input['device'] ?? 'desktop')));
+        $requestedLanguage = strtolower(trim((string) ($input['language'] ?? '')));
 
         if ($keyword === '') {
             Response::json(['success' => false, 'message' => 'Keyword is required.'], 422);
@@ -260,7 +261,8 @@ final class StandaloneController
         }
 
         $settings = $this->normalizeSettings((array) ($store['settings'] ?? []));
-        $language = (string) ($settings['output_language'] ?? 'ar');
+        $settingsLanguage = (string) ($settings['output_language'] ?? 'ar');
+        $language = in_array($requestedLanguage, ['ar', 'en'], true) ? $requestedLanguage : $settingsLanguage;
 
         try {
             $result = (new DataForSeoClient())->keywordOverview($keyword, $device, $country, $language);
@@ -276,6 +278,7 @@ final class StandaloneController
         $history[] = [
             'keyword' => $keyword,
             'country' => $country,
+            'language' => $language,
             'device' => $device,
             'created_at' => date(DATE_ATOM),
             'result' => $result,
@@ -1042,4 +1045,3 @@ TEXT;
         return substr($trimmed, 0, $maxLen);
     }
 }
-

@@ -120,6 +120,7 @@ HTML));
             return;
         }
         $repo->setUserPassword($userId, password_hash($password, PASSWORD_DEFAULT));
+        $repo->setUserEmailVerificationRequired($userId);
 
         $subscription = (new SubscriptionManager())->startTrial(['merchant_id' => $merchantId]);
         $repo->upsertSubscription($storeId, $subscription);
@@ -141,9 +142,12 @@ HTML));
             'created_at' => date(DATE_ATOM),
         ]);
 
-        $_SESSION['user_id'] = $userId;
-        $_SESSION['store_id'] = $storeId;
-        header('Location: /member');
+        $sent = $this->sendVerificationEmail($repo, $userId, $email, $fullName);
+        $message = $sent
+            ? 'Registration completed. Please check your email and confirm your account before login.'
+            : 'Registration completed, but email delivery failed. Use resend verification from login page.';
+
+        Response::html(View::render('Verify Email', '<div class="card"><h1>Verify your email</h1><p class="muted">' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p><p><a class="btn" href="/login">Go To Login</a></p></div>'));
     }
 
     public function loginSubmit(): void
@@ -155,16 +159,83 @@ HTML));
 
         $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $password = (string) ($_POST['password'] ?? '');
-        $user = (new SaaSRepository())->findUserByEmail($email);
+        $repository = new SaaSRepository();
+        $user = $repository->findUserByEmail($email);
 
         if (!$user || empty($user['password_hash']) || !password_verify($password, (string) $user['password_hash'])) {
             Response::html(View::render('Login Failed', '<div class="card"><h1>Login failed</h1><p class="muted">Check email/password.</p><p><a class="btn" href="/login">Back</a></p></div>'), 401);
             return;
         }
 
+        if (!$repository->isUserEmailVerified((int) $user['id'])) {
+            $this->sendVerificationEmail(
+                $repository,
+                (int) $user['id'],
+                (string) ($user['email'] ?? $email),
+                (string) ($user['full_name'] ?? '')
+            );
+
+            $safeEmail = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
+            Response::html(View::render('Verify Email Required', <<<HTML
+<div class="card" style="max-width:640px;margin:auto;">
+  <h1>Email confirmation required</h1>
+  <p class="muted">We sent a verification link to {$safeEmail}. Please confirm your email before login.</p>
+  <form method="post" action="/resend-verification" style="margin-top:14px;">
+    <input type="hidden" name="email" value="{$safeEmail}">
+    <button class="btn" type="submit">Resend Verification Email</button>
+    <a class="btn btn-secondary" href="/login">Back</a>
+  </form>
+</div>
+HTML), 403);
+            return;
+        }
+
         $_SESSION['user_id'] = (int) $user['id'];
         $_SESSION['store_id'] = (int) $user['store_id'];
         header('Location: /member');
+    }
+
+    public function verifyEmail(): void
+    {
+        $token = trim((string) Request::query('token', ''));
+        if ($token === '' || !Database::isAvailable()) {
+            Response::html(View::render('Verify Email', '<div class="card"><h1>Invalid verification link</h1><p><a class="btn" href="/login">Back To Login</a></p></div>'), 400);
+            return;
+        }
+
+        $repository = new SaaSRepository();
+        $record = $repository->findValidEmailVerificationToken($token);
+        if ($record === null) {
+            Response::html(View::render('Verify Email', '<div class="card"><h1>Verification link is expired or invalid</h1><p><a class="btn" href="/login">Back To Login</a></p></div>'), 400);
+            return;
+        }
+
+        $repository->markUserEmailVerified((int) $record['user_id']);
+        $repository->markEmailVerificationTokenUsed((int) $record['id']);
+
+        Response::html(View::render('Verify Email', '<div class="card"><h1>Email verified successfully</h1><p class="muted">Your account is active now.</p><p><a class="btn" href="/login">Login</a></p></div>'));
+    }
+
+    public function resendVerificationSubmit(): void
+    {
+        if (!Database::isAvailable()) {
+            Response::html(View::render('Resend Verification', '<div class="card"><h1>Database is not available</h1><p><a class="btn" href="/login">Back To Login</a></p></div>'), 500);
+            return;
+        }
+
+        $email = strtolower(trim((string) ($_POST['email'] ?? '')));
+        $repository = new SaaSRepository();
+        $user = $repository->findUserByEmail($email);
+        if ($user && !$repository->isUserEmailVerified((int) $user['id'])) {
+            $this->sendVerificationEmail(
+                $repository,
+                (int) $user['id'],
+                (string) ($user['email'] ?? $email),
+                (string) ($user['full_name'] ?? '')
+            );
+        }
+
+        Response::html(View::render('Resend Verification', '<div class="card"><h1>Request received</h1><p class="muted">If this email exists and is not verified, we sent a new verification link.</p><p><a class="btn" href="/login">Back To Login</a></p></div>'));
     }
 
     public function setPasswordForm(): void
@@ -314,5 +385,25 @@ HTML));
         } while ($existing !== null);
 
         return $candidate;
+    }
+
+    private function sendVerificationEmail(SaaSRepository $repository, int $userId, string $email, string $fullName): bool
+    {
+        try {
+            $rawToken = bin2hex(random_bytes(32));
+            $repository->createEmailVerificationToken(
+                $userId,
+                password_hash($rawToken, PASSWORD_DEFAULT),
+                date('Y-m-d H:i:s', strtotime('+24 hours'))
+            );
+
+            $appUrl = rtrim((string) Config::get('APP_URL', 'http://localhost:8000'), '/');
+            $url = $appUrl . '/verify-email?token=' . urlencode($rawToken);
+
+            (new Mailer())->sendEmailVerification($email, $fullName, $url);
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }

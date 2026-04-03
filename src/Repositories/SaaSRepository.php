@@ -13,6 +13,7 @@ final class SaaSRepository
     private PDO $pdo;
     private ?bool $aiUsageHasModeColumn = null;
     private ?bool $dataForSeoUsageTableReady = null;
+    private ?bool $userVerificationSchemaReady = null;
 
     public function __construct()
     {
@@ -66,6 +67,7 @@ final class SaaSRepository
 
     public function ensureOwnerUser(int $storeId, string $email, ?string $fullName): array
     {
+        $this->ensureUserVerificationSchema();
         $stmt = $this->pdo->prepare('SELECT * FROM users WHERE email = :email LIMIT 1');
         $stmt->execute(['email' => $email]);
         $existing = $stmt->fetch();
@@ -179,10 +181,101 @@ final class SaaSRepository
 
     public function findUserByEmail(string $email): ?array
     {
+        $this->ensureUserVerificationSchema();
         $stmt = $this->pdo->prepare('SELECT u.*, s.merchant_id, s.store_name FROM users u INNER JOIN stores s ON s.id = u.store_id WHERE u.email = :email LIMIT 1');
         $stmt->execute(['email' => $email]);
         $record = $stmt->fetch();
         return $record ?: null;
+    }
+
+    public function setUserEmailVerificationRequired(int $userId): void
+    {
+        if (!$this->ensureUserVerificationSchema()) {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare('UPDATE users SET is_email_verified = 0, email_verified_at = NULL, updated_at = :updated_at WHERE id = :id');
+        $stmt->execute([
+            'id' => $userId,
+            'updated_at' => (new DateTimeImmutable())->format('Y-m-d H:i:s'),
+        ]);
+    }
+
+    public function isUserEmailVerified(int $userId): bool
+    {
+        if (!$this->ensureUserVerificationSchema()) {
+            return true;
+        }
+
+        $stmt = $this->pdo->prepare('SELECT is_email_verified FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $userId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return false;
+        }
+
+        return (int) ($row['is_email_verified'] ?? 1) === 1;
+    }
+
+    public function createEmailVerificationToken(int $userId, string $tokenHash, string $expiresAt): void
+    {
+        if (!$this->ensureUserVerificationSchema()) {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare('INSERT INTO email_verification_tokens (user_id, token_hash, expires_at, created_at) VALUES (:user_id, :token_hash, :expires_at, :created_at)');
+        $stmt->execute([
+            'user_id' => $userId,
+            'token_hash' => $tokenHash,
+            'expires_at' => $expiresAt,
+            'created_at' => (new DateTimeImmutable())->format('Y-m-d H:i:s'),
+        ]);
+    }
+
+    public function findValidEmailVerificationToken(string $plainToken): ?array
+    {
+        if (!$this->ensureUserVerificationSchema()) {
+            return null;
+        }
+
+        $stmt = $this->pdo->query('SELECT evt.*, u.email, u.full_name, u.store_id FROM email_verification_tokens evt INNER JOIN users u ON u.id = evt.user_id WHERE evt.used_at IS NULL ORDER BY evt.id DESC');
+        $records = $stmt->fetchAll();
+
+        foreach ($records as $record) {
+            if (password_verify($plainToken, (string) $record['token_hash']) && strtotime((string) $record['expires_at']) > time()) {
+                return $record;
+            }
+        }
+
+        return null;
+    }
+
+    public function markEmailVerificationTokenUsed(int $tokenId): void
+    {
+        if (!$this->ensureUserVerificationSchema()) {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare('UPDATE email_verification_tokens SET used_at = :used_at WHERE id = :id');
+        $stmt->execute([
+            'id' => $tokenId,
+            'used_at' => (new DateTimeImmutable())->format('Y-m-d H:i:s'),
+        ]);
+    }
+
+    public function markUserEmailVerified(int $userId): void
+    {
+        if (!$this->ensureUserVerificationSchema()) {
+            return;
+        }
+
+        $now = (new DateTimeImmutable())->format('Y-m-d H:i:s');
+        $stmt = $this->pdo->prepare('UPDATE users SET is_email_verified = 1, email_verified_at = :email_verified_at, updated_at = :updated_at WHERE id = :id');
+        $stmt->execute([
+            'id' => $userId,
+            'email_verified_at' => $now,
+            'updated_at' => $now,
+        ]);
     }
 
     public function findStoreById(int $storeId): ?array
@@ -688,6 +781,45 @@ final class SaaSRepository
         }
 
         return $this->dataForSeoUsageTableReady;
+    }
+
+    private function ensureUserVerificationSchema(): bool
+    {
+        if ($this->userVerificationSchemaReady !== null) {
+            return $this->userVerificationSchemaReady;
+        }
+
+        try {
+            $this->pdo->exec(
+                'CREATE TABLE IF NOT EXISTS email_verification_tokens (
+                    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    user_id BIGINT UNSIGNED NOT NULL,
+                    token_hash VARCHAR(255) NOT NULL,
+                    expires_at DATETIME NOT NULL,
+                    used_at DATETIME NULL,
+                    created_at DATETIME NOT NULL,
+                    CONSTRAINT fk_email_verification_tokens_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )'
+            );
+
+            try {
+                $this->pdo->exec('ALTER TABLE users ADD COLUMN is_email_verified TINYINT(1) NOT NULL DEFAULT 1');
+            } catch (\Throwable) {
+                // Column may already exist.
+            }
+
+            try {
+                $this->pdo->exec('ALTER TABLE users ADD COLUMN email_verified_at DATETIME NULL');
+            } catch (\Throwable) {
+                // Column may already exist.
+            }
+
+            $this->userVerificationSchemaReady = true;
+        } catch (\Throwable) {
+            $this->userVerificationSchemaReady = false;
+        }
+
+        return $this->userVerificationSchemaReady;
     }
 
     private function toSqlDate(?string $date): ?string

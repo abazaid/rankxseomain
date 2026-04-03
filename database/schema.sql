@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   store_id BIGINT UNSIGNED NOT NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
+  is_email_verified TINYINT(1) NOT NULL DEFAULT 1,
+  email_verified_at DATETIME NULL,
   full_name VARCHAR(255) NULL,
   role VARCHAR(50) NOT NULL DEFAULT 'owner',
   password_hash VARCHAR(255) NULL,
@@ -49,6 +51,16 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
   used_at DATETIME NULL,
   created_at DATETIME NOT NULL,
   CONSTRAINT fk_password_reset_tokens_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  token_hash VARCHAR(255) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  created_at DATETIME NOT NULL,
+  CONSTRAINT fk_email_verification_tokens_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS admin_activity_logs (

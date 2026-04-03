@@ -9,6 +9,32 @@ use RuntimeException;
 
 final class Mailer
 {
+    public function sendEmailVerification(string $toEmail, string $toName, string $verifyUrl): bool
+    {
+        $subject = (string) Config::get('MAIL_VERIFY_SUBJECT', 'Confirm your email');
+        $safeName = htmlspecialchars($toName !== '' ? $toName : $toEmail, ENT_QUOTES, 'UTF-8');
+        $safeUrl = htmlspecialchars($verifyUrl, ENT_QUOTES, 'UTF-8');
+
+        $html = <<<HTML
+<html lang="en">
+  <body style="margin:0;font-family:Segoe UI,Tahoma,Arial,sans-serif;background:#f5f7ff;padding:28px;color:#1e293b;">
+    <div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:18px;padding:30px;border:1px solid #e2e8f0;">
+      <div style="display:inline-block;padding:8px 14px;border-radius:999px;background:#eef2ff;color:#4f46e5;font-size:13px;font-weight:700;">RankX SEO</div>
+      <h1 style="margin:16px 0 8px;font-size:30px;line-height:1.2;">Welcome {$safeName}</h1>
+      <p style="margin:0;color:#475569;line-height:1.8;">Please confirm your email address to activate your account and start using your member dashboard.</p>
+      <div style="margin-top:22px;padding:18px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;">
+        <a href="{$safeUrl}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Confirm Email</a>
+      </div>
+      <p style="margin-top:20px;color:#64748b;line-height:1.8;">If the button does not work, copy this link into your browser:</p>
+      <p style="word-break:break-all;color:#334155;line-height:1.8;">{$safeUrl}</p>
+    </div>
+  </body>
+</html>
+HTML;
+
+        return $this->sendHtml($toEmail, $toName, $subject, $html);
+    }
+
     public function sendPasswordReset(string $toEmail, string $toName, string $resetUrl): bool
     {
         $subject = (string) Config::get('MAIL_RESET_SUBJECT', 'تعيين كلمة المرور');

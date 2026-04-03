@@ -32,6 +32,8 @@ $router->post('/register', [AuthController::class, 'registerSubmit']);
 $router->get('/logout', [AuthController::class, 'logout']);
 $router->get('/forgot-password', [AuthController::class, 'forgotPasswordForm']);
 $router->post('/forgot-password', [AuthController::class, 'forgotPasswordSubmit']);
+$router->get('/verify-email', [AuthController::class, 'verifyEmail']);
+$router->post('/resend-verification', [AuthController::class, 'resendVerificationSubmit']);
 $router->get('/set-password', [AuthController::class, 'setPasswordForm']);
 $router->post('/set-password', [AuthController::class, 'setPasswordSubmit']);
 $router->get('/member', [AuthController::class, 'dashboard']);
