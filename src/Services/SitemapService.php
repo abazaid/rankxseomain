@@ -444,6 +444,9 @@ final class SitemapService
         if (preg_match('~/(category|categories|c)/~', $path) === 1) {
             return 'category';
         }
+        if (preg_match('~/(brand|brands|b)/~', $path) === 1) {
+            return 'brand';
+        }
 
         return 'page';
     }

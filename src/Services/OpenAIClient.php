@@ -369,8 +369,9 @@ Brand Information:
 Rules:
 - Write compelling meta_title (max 60 characters)
 - Write meta_description (max 160 characters)
-- Write a rich brand description in HTML (use <h2>, <h3>, <p>, <ul><li>, <strong>)
-- Include brand story, values, and what makes it special
+- Write a SHORT plain-text brand description (no HTML tags, no headings, no markdown, max 255 characters)
+- Include value proposition and relevance to the brand keyword
+- Generate SEO slug from brand name (clean URL-friendly, lowercase, hyphen-separated, no spaces)
 - Target Saudi Arabian market
 - Use natural Arabic
 - Keep content strictly relevant to the merchant business profile and brand keyword (no generic filler)
@@ -380,7 +381,7 @@ Rules:
                                 . $this->buildInstructionBlock('Meta Title rules', $metaTitleInstructions)
                                 . $this->buildInstructionBlock('Meta Description rules', $metaDescriptionInstructions)
                                 . $this->buildInstructionBlock('Brand SEO instructions', $brandSeoInstructions)
-                                . "\nReturn ONLY JSON: {\"meta_title\": \"...\", \"meta_description\": \"...\", \"description\": \"...\"}",
+                                . "\nReturn ONLY JSON: {\"meta_title\": \"...\", \"meta_description\": \"...\", \"description\": \"...\", \"seo_slug\": \"...\"}",
                         ],
                     ],
                 ],
@@ -403,19 +404,23 @@ Rules:
             throw new RuntimeException('OpenAI returned invalid JSON for brand SEO.');
         }
 
-        $description = trim((string) (
+        $descriptionRaw = trim((string) (
             $decoded['description']
             ?? $decoded['brand_description']
             ?? ''
         ));
+        $description = $this->limitText(trim(strip_tags($descriptionRaw)), 255);
         if ($description === '') {
             throw new RuntimeException('OpenAI returned empty brand description content.');
         }
+        $slugSource = trim((string) ($decoded['seo_slug'] ?? ($brand['name'] ?? '')));
+        $seoSlug = $this->buildSeoSlug($slugSource);
 
         return [
             'meta_title' => $this->limitText(trim((string) ($decoded['meta_title'] ?? '')), 60),
             'meta_description' => $this->limitText(trim((string) ($decoded['meta_description'] ?? '')), 160),
-            'description' => $this->ensureHtmlDescription($description),
+            'description' => $description,
+            'seo_slug' => $seoSlug,
             '_usage' => is_array($body['usage'] ?? null) ? $body['usage'] : [],
             '_model' => $model,
         ];
@@ -471,7 +476,7 @@ Category Information:
 Rules:
 - Write compelling meta_title (max 60 characters)
 - Write meta_description (max 160 characters)
-- Write a category description in HTML (use <h2>, <h3>, <p>, <ul><li>, <strong>)
+- Generate SEO slug from category name (clean URL-friendly, lowercase, hyphen-separated, no spaces)
 - Target Saudi Arabian market
 - Use natural Arabic
 - Focus on the category name and what products it contains
@@ -482,7 +487,7 @@ Rules:
                                 . $this->buildInstructionBlock('Meta Title rules', $metaTitleInstructions)
                                 . $this->buildInstructionBlock('Meta Description rules', $metaDescriptionInstructions)
                                 . $this->buildInstructionBlock('Category SEO instructions', $categorySeoInstructions)
-                                . "\nReturn ONLY JSON: {\"meta_title\": \"...\", \"meta_description\": \"...\", \"description\": \"...\"}",
+                                . "\nReturn ONLY JSON: {\"meta_title\": \"...\", \"meta_description\": \"...\", \"seo_slug\": \"...\"}",
                         ],
                     ],
                 ],
@@ -505,19 +510,14 @@ Rules:
             throw new RuntimeException('OpenAI returned invalid JSON for category SEO.');
         }
 
-        $description = trim((string) (
-            $decoded['description']
-            ?? $decoded['category_description']
-            ?? ''
-        ));
-        if ($description === '') {
-            throw new RuntimeException('OpenAI returned empty category description content.');
-        }
+        $slugSource = trim((string) ($decoded['seo_slug'] ?? ($category['name'] ?? '')));
+        $seoSlug = $this->buildSeoSlug($slugSource);
 
         return [
             'meta_title' => $this->limitText(trim((string) ($decoded['meta_title'] ?? '')), 60),
             'meta_description' => $this->limitText(trim((string) ($decoded['meta_description'] ?? '')), 160),
-            'description' => $this->ensureHtmlDescription($description),
+            'description' => '',
+            'seo_slug' => $seoSlug,
             '_usage' => is_array($body['usage'] ?? null) ? $body['usage'] : [],
             '_model' => $model,
         ];
@@ -813,7 +813,7 @@ METADATA: metadata_title (50-60 chars, start with product name), metadata_descri
             }
 
             $type = trim((string) ($row['type'] ?? 'page'));
-            if (!in_array($type, ['product', 'category', 'page'], true)) {
+            if (!in_array($type, ['product', 'category', 'brand', 'page'], true)) {
                 $type = 'page';
             }
             $title = trim((string) ($row['title'] ?? ''));
@@ -822,6 +822,8 @@ METADATA: metadata_title (50-60 chars, start with product name), metadata_descri
             $score = 0;
             if ($type === 'category') {
                 $score += 20;
+            } elseif ($type === 'brand') {
+                $score += 18;
             } elseif ($type === 'product') {
                 $score += 12;
             } else {
@@ -936,20 +938,85 @@ METADATA: metadata_title (50-60 chars, start with product name), metadata_descri
             return '';
         }
 
-        $links = $this->pickRelevantSitemapLinks($product, $settings, 4);
+        $links = $this->pickRelevantSitemapLinks($product, $settings, 14);
         if ($links === []) {
             return 'If no internal links list is provided, skip internal links and continue normally.';
         }
 
+        $byType = $this->groupLinksByType($links);
+        $categoryLinks = $byType['category'];
+        $brandLinks = $byType['brand'];
+        $productLinks = $byType['product'];
+        $pageLinks = $byType['page'];
+
         $rows = [];
-        foreach ($links as $index => $link) {
-            $label = $link['title'] !== '' ? $link['title'] : ('Link ' . ($index + 1));
-            $rows[] = '- ' . $label . ' | ' . $link['url'] . ' | type=' . $link['type'];
+        foreach ($categoryLinks as $index => $link) {
+            $label = $link['title'] !== '' ? $link['title'] : ('Category Link ' . ($index + 1));
+            $rows[] = '- [CATEGORY] ' . $label . ' | ' . $link['url'];
+        }
+        foreach ($brandLinks as $index => $link) {
+            $label = $link['title'] !== '' ? $link['title'] : ('Brand Link ' . ($index + 1));
+            $rows[] = '- [BRAND] ' . $label . ' | ' . $link['url'];
+        }
+        foreach ($productLinks as $index => $link) {
+            $label = $link['title'] !== '' ? $link['title'] : ('Product Link ' . ($index + 1));
+            $rows[] = '- [PRODUCT] ' . $label . ' | ' . $link['url'];
+        }
+        foreach ($pageLinks as $index => $link) {
+            $label = $link['title'] !== '' ? $link['title'] : ('Page Link ' . ($index + 1));
+            $rows[] = '- [PAGE] ' . $label . ' | ' . $link['url'];
         }
 
-        return "Use exactly 2-4 relevant internal links from this list inside the description body (never external links, never the same link repeated):\n"
+        $requirements = [];
+        if ($categoryLinks !== []) {
+            $requirements[] = '- Include at least 1 category internal link.';
+        }
+        if ($brandLinks !== []) {
+            $requirements[] = '- Include at least 1 brand internal link.';
+        }
+        if (count($productLinks) >= 2) {
+            $requirements[] = '- Include 2-3 product internal links.';
+        } elseif (count($productLinks) === 1) {
+            $requirements[] = '- Include exactly 1 product internal link (only one candidate exists).';
+        }
+        if ($requirements === []) {
+            $requirements[] = '- Include relevant internal links from the list naturally.';
+        }
+
+        return "Use internal links from this list only (never external links, never duplicate the same link):\n"
             . implode("\n", $rows)
-            . "\nPlace links naturally in suitable sections using HTML anchor tags.";
+            . "\nInternal link composition rules:\n"
+            . implode("\n", $requirements)
+            . "\nPlace links naturally in suitable sections using HTML anchor tags."
+            . "\nNever link to out-of-stock/unavailable products."
+            . "\nIf product availability is unknown, prefer category/brand/page links instead of product links.";
+    }
+
+    /**
+     * @param array<int, array{url:string,title:string,type:string,score:int}> $links
+     * @return array{category:array<int, array{url:string,title:string,type:string,score:int}>,brand:array<int, array{url:string,title:string,type:string,score:int}>,product:array<int, array{url:string,title:string,type:string,score:int}>,page:array<int, array{url:string,title:string,type:string,score:int}>}
+     */
+    private function groupLinksByType(array $links): array
+    {
+        $result = [
+            'category' => [],
+            'brand' => [],
+            'product' => [],
+            'page' => [],
+        ];
+
+        foreach ($links as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $type = (string) ($row['type'] ?? 'page');
+            if (!array_key_exists($type, $result)) {
+                $type = 'page';
+            }
+            $result[$type][] = $row;
+        }
+
+        return $result;
     }
 
     private function extractText(array $body): string
@@ -1043,5 +1110,26 @@ METADATA: metadata_title (50-60 chars, start with product name), metadata_descri
         }
 
         return strpos($haystackText, $needleText) !== false;
+    }
+
+    private function buildSeoSlug(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (function_exists('mb_strtolower')) {
+            $value = mb_strtolower($value, 'UTF-8');
+        } else {
+            $value = strtolower($value);
+        }
+
+        $value = preg_replace('/[^\p{L}\p{N}\s\-]+/u', ' ', $value) ?? $value;
+        $value = preg_replace('/[\s_]+/u', '-', trim($value)) ?? $value;
+        $value = preg_replace('/-+/u', '-', $value) ?? $value;
+        $value = trim($value, '-');
+
+        return $this->limitText($value, 120);
     }
 }

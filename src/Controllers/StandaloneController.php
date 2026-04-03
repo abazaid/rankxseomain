@@ -225,6 +225,7 @@ final class StandaloneController
                     'description' => (string) ($result['description'] ?? ''),
                     'meta_title' => (string) ($result['meta_title'] ?? ''),
                     'meta_description' => (string) ($result['meta_description'] ?? ''),
+                    'seo_slug' => (string) ($result['seo_slug'] ?? ''),
                 ];
                 $usage = is_array($result['_usage'] ?? null) ? $result['_usage'] : [];
                 $model = (string) ($result['_model'] ?? '');
@@ -239,6 +240,7 @@ final class StandaloneController
                     'description' => (string) ($result['description'] ?? ''),
                     'meta_title' => (string) ($result['meta_title'] ?? ''),
                     'meta_description' => (string) ($result['meta_description'] ?? ''),
+                    'seo_slug' => (string) ($result['seo_slug'] ?? ''),
                 ];
                 $usage = is_array($result['_usage'] ?? null) ? $result['_usage'] : [];
                 $model = (string) ($result['_model'] ?? '');
@@ -264,6 +266,7 @@ final class StandaloneController
             'description' => $generated['description'],
             'meta_title' => $generated['meta_title'],
             'meta_description' => $generated['meta_description'],
+            'seo_slug' => (string) ($generated['seo_slug'] ?? ''),
             'created_at' => date(DATE_ATOM),
         ];
         $items[] = $row;
@@ -707,10 +710,17 @@ final class StandaloneController
             is_array($settings['sitemap_links_cache'] ?? null) ? (array) $settings['sitemap_links_cache'] : []
         );
 
+        $productDescriptionInstructions = $this->normalizeText(
+            $this->pickInstructionWithDefault($settings, 'product_description_instructions', (string) $defaults['product_description_instructions']),
+            5000
+        );
+        $productDescriptionInstructions = $this->appendInternalLinksCompositionRule($productDescriptionInstructions);
+        $productDescriptionInstructions = $this->appendUnavailableProductsRule($productDescriptionInstructions);
+
         return [
             'output_language' => $language,
             'global_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'global_instructions', (string) $defaults['global_instructions']), 5000),
-            'product_description_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'product_description_instructions', (string) $defaults['product_description_instructions']), 5000),
+            'product_description_instructions' => $productDescriptionInstructions,
             'meta_title_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'meta_title_instructions', (string) $defaults['meta_title_instructions']), 3000),
             'meta_description_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'meta_description_instructions', (string) $defaults['meta_description_instructions']), 3000),
             'store_seo_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'store_seo_instructions', (string) $defaults['store_seo_instructions']), 5000),
@@ -735,6 +745,56 @@ final class StandaloneController
             ],
             'domain_seo_history' => is_array($settings['domain_seo_history'] ?? null) ? array_slice((array) $settings['domain_seo_history'], -100) : [],
         ];
+    }
+
+    private function appendUnavailableProductsRule(string $instructions): string
+    {
+        $normalized = trim($instructions);
+        if ($normalized === '') {
+            return '';
+        }
+
+        $rule = 'قاعدة إلزامية للروابط الداخلية: لا تضف أي رابط لمنتج غير متوفر أو نافد. إذا لم تكن حالة التوفر مؤكدة، لا تضع رابط منتج واستبدله برابط قسم أو صفحة عامة من السايت ماب.';
+
+        if (function_exists('mb_stripos')) {
+            if (mb_stripos($normalized, 'غير متوفر', 0, 'UTF-8') !== false || mb_stripos($normalized, 'نافد', 0, 'UTF-8') !== false) {
+                return $normalized;
+            }
+        } else {
+            $lower = strtolower($normalized);
+            if (str_contains($lower, 'غير متوفر') || str_contains($lower, 'نافد')) {
+                return $normalized;
+            }
+        }
+
+        return $this->normalizeText($normalized . "\n\n" . $rule, 5000);
+    }
+
+    private function appendInternalLinksCompositionRule(string $instructions): string
+    {
+        $normalized = trim($instructions);
+        if ($normalized === '') {
+            return '';
+        }
+
+        $rule = 'قاعدة إلزامية للربط الداخلي: عند توفر روابط مناسبة من السايت ماب، أضف دائمًا رابط تصنيف داخلي + رابط براند داخلي + من 2 إلى 3 روابط منتجات داخلية ذات صلة. هذا يُطبق عندما يكون للمنتج تصنيف وبراند.';
+
+        if (function_exists('mb_stripos')) {
+            $hasCategoryRule = mb_stripos($normalized, 'رابط تصنيف', 0, 'UTF-8') !== false;
+            $hasBrandRule = mb_stripos($normalized, 'رابط براند', 0, 'UTF-8') !== false;
+            $hasProductsRule = mb_stripos($normalized, '2 إلى 3 روابط منتجات', 0, 'UTF-8') !== false
+                || mb_stripos($normalized, '2-3 روابط منتجات', 0, 'UTF-8') !== false;
+            if ($hasCategoryRule && $hasBrandRule && $hasProductsRule) {
+                return $normalized;
+            }
+        } else {
+            $lower = strtolower($normalized);
+            if (str_contains($lower, 'رابط تصنيف') && str_contains($lower, 'رابط براند') && (str_contains($lower, '2 إلى 3 روابط منتجات') || str_contains($lower, '2-3 روابط منتجات'))) {
+                return $normalized;
+            }
+        }
+
+        return $this->normalizeText($normalized . "\n\n" . $rule, 5000);
     }
 
     private function defaultSettings(): array

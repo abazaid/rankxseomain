@@ -208,6 +208,7 @@
         <p style="margin:10px 0 6px;line-height:1.9;">${escapeHtml(htmlToPlainText(item.description || '').slice(0, 280))}${(htmlToPlainText(item.description || '').length > 280) ? '...' : ''}</p>
         <p style="margin:0 0 4px;"><strong>Meta Title:</strong> ${escapeHtml(item.meta_title || '-')}</p>
         <p style="margin:0;"><strong>Meta Description:</strong> ${escapeHtml(item.meta_description || '-')}</p>
+        <p style="margin:6px 0 0;"><strong>SEO Slug:</strong> ${escapeHtml(item.seo_slug || '-')}</p>
         <div style="margin-top:10px;">
           <button class="btn btn-secondary" type="button" data-open-generated-item="${escapeHtml(String(item.id || ''))}" data-open-generated-type="${escapeHtml(type)}">عرض ونسخ النتيجة</button>
         </div>
@@ -247,18 +248,43 @@
     const dateEl = document.getElementById('generated-result-date');
     const descHtmlEl = document.getElementById('generated-result-description-html');
     const descRenderedEl = document.getElementById('generated-result-description-rendered');
+    const descCardEl = document.getElementById('generated-result-description-card');
+    const descTitleEl = document.getElementById('generated-result-description-title');
+    const descCopyBtnEl = document.getElementById('generated-result-description-copy-btn');
     const metaTitleEl = document.getElementById('generated-result-meta-title');
     const metaDescEl = document.getElementById('generated-result-meta-description');
+    const seoSlugEl = document.getElementById('generated-result-seo-slug');
 
     const sanitizedDescriptionHtml = sanitizeHtmlForPreview(item.description || '');
+    const plainDescription = htmlToPlainText(item.description || '');
+    const seoSlug = String(item.seo_slug || '').trim();
 
     if (titleEl) titleEl.textContent = item.title || item.keyword || '-';
     if (typeEl) typeEl.textContent = typeLabels[type] || 'نتيجة التوليد';
     if (dateEl) dateEl.textContent = formatDate(item.created_at || '');
-    if (descHtmlEl) descHtmlEl.value = sanitizedDescriptionHtml;
-    if (descRenderedEl) {
-      descRenderedEl.innerHTML = sanitizedDescriptionHtml || '<p class="muted">لا يوجد وصف متاح.</p>';
-      descRenderedEl.scrollTop = 0;
+    if (seoSlugEl) seoSlugEl.value = seoSlug;
+
+    if (type === 'category') {
+      if (descCardEl) descCardEl.style.display = 'none';
+    } else {
+      if (descCardEl) descCardEl.style.display = '';
+      if (type === 'brand') {
+        if (descTitleEl) descTitleEl.textContent = 'الوصف المختصر';
+        if (descCopyBtnEl) descCopyBtnEl.textContent = 'نسخ الوصف المختصر';
+        if (descHtmlEl) descHtmlEl.value = plainDescription;
+        if (descRenderedEl) {
+          descRenderedEl.textContent = plainDescription || 'لا يوجد وصف متاح.';
+          descRenderedEl.scrollTop = 0;
+        }
+      } else {
+        if (descTitleEl) descTitleEl.textContent = 'وصف المحتوى';
+        if (descCopyBtnEl) descCopyBtnEl.textContent = 'نسخ الوصف';
+        if (descHtmlEl) descHtmlEl.value = sanitizedDescriptionHtml;
+        if (descRenderedEl) {
+          descRenderedEl.innerHTML = sanitizedDescriptionHtml || '<p class="muted">لا يوجد وصف متاح.</p>';
+          descRenderedEl.scrollTop = 0;
+        }
+      }
     }
     if (metaTitleEl) metaTitleEl.value = String(item.meta_title || '').trim();
     if (metaDescEl) metaDescEl.value = String(item.meta_description || '').trim();

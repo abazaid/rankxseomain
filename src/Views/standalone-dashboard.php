@@ -266,10 +266,10 @@ if ($appBasePath === '/') {
         <button id="generated-result-close" class="btn btn-secondary" type="button">إغلاق</button>
       </div>
       <div class="panel-stack">
-        <div class="card surface-soft" style="box-shadow:none;">
+        <div id="generated-result-description-card" class="card surface-soft" style="box-shadow:none;">
           <div class="section-head" style="margin-bottom:10px;">
-            <h3 style="margin:0;">وصف المحتوى</h3>
-            <button class="btn btn-secondary" type="button" data-copy-target="generated-result-description-html">نسخ الوصف</button>
+            <h3 id="generated-result-description-title" style="margin:0;">وصف المحتوى</h3>
+            <button id="generated-result-description-copy-btn" class="btn btn-secondary" type="button" data-copy-target="generated-result-description-html">نسخ الوصف</button>
           </div>
           <input id="generated-result-description-html" type="hidden" value="">
           <div id="generated-result-description-rendered" class="generated-result-rendered"></div>
@@ -289,6 +289,13 @@ if ($appBasePath === '/') {
               <button class="btn btn-secondary" type="button" data-copy-target="generated-result-meta-description">نسخ</button>
             </div>
             <textarea id="generated-result-meta-description" rows="6" readonly></textarea>
+          </div>
+          <div class="card surface-soft" style="box-shadow:none;">
+            <div class="section-head" style="margin-bottom:10px;">
+              <h3 style="margin:0;">SEO Slug</h3>
+              <button class="btn btn-secondary" type="button" data-copy-target="generated-result-seo-slug">نسخ</button>
+            </div>
+            <textarea id="generated-result-seo-slug" rows="3" readonly></textarea>
           </div>
         </div>
       </div>
