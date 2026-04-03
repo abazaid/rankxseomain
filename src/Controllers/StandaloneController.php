@@ -547,14 +547,14 @@ final class StandaloneController
 
         return [
             'output_language' => $language,
-            'global_instructions' => $this->normalizeText((string) ($settings['global_instructions'] ?? $defaults['global_instructions']), 5000),
-            'product_description_instructions' => $this->normalizeText((string) ($settings['product_description_instructions'] ?? $defaults['product_description_instructions']), 5000),
-            'meta_title_instructions' => $this->normalizeText((string) ($settings['meta_title_instructions'] ?? $defaults['meta_title_instructions']), 3000),
-            'meta_description_instructions' => $this->normalizeText((string) ($settings['meta_description_instructions'] ?? $defaults['meta_description_instructions']), 3000),
-            'store_seo_instructions' => $this->normalizeText((string) ($settings['store_seo_instructions'] ?? $defaults['store_seo_instructions']), 5000),
-            'brand_seo_instructions' => $this->normalizeText((string) ($settings['brand_seo_instructions'] ?? $defaults['brand_seo_instructions']), 3000),
-            'category_seo_instructions' => $this->normalizeText((string) ($settings['category_seo_instructions'] ?? $defaults['category_seo_instructions']), 3000),
-            'blog_seo_instructions' => $this->normalizeText((string) ($settings['blog_seo_instructions'] ?? $defaults['blog_seo_instructions']), 5000),
+            'global_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'global_instructions', (string) $defaults['global_instructions']), 5000),
+            'product_description_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'product_description_instructions', (string) $defaults['product_description_instructions']), 5000),
+            'meta_title_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'meta_title_instructions', (string) $defaults['meta_title_instructions']), 3000),
+            'meta_description_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'meta_description_instructions', (string) $defaults['meta_description_instructions']), 3000),
+            'store_seo_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'store_seo_instructions', (string) $defaults['store_seo_instructions']), 5000),
+            'brand_seo_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'brand_seo_instructions', (string) $defaults['brand_seo_instructions']), 3000),
+            'category_seo_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'category_seo_instructions', (string) $defaults['category_seo_instructions']), 3000),
+            'blog_seo_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'blog_seo_instructions', (string) $defaults['blog_seo_instructions']), 5000),
             'business_brand_name' => $this->normalizeText((string) ($settings['business_brand_name'] ?? ''), 160),
             'business_overview' => $this->normalizeText((string) ($settings['business_overview'] ?? ''), 1500),
             'keyword_history' => is_array($settings['keyword_history'] ?? null) ? array_slice((array) $settings['keyword_history'], -100) : [],
@@ -575,16 +575,460 @@ final class StandaloneController
     {
         return [
             'output_language' => 'ar',
-            'global_instructions' => '',
-            'product_description_instructions' => 'Write clear ecommerce-friendly descriptions and avoid fake claims.',
-            'meta_title_instructions' => 'Keep title concise and include the keyword naturally.',
-            'meta_description_instructions' => 'Write compelling and factual snippets with strong intent.',
-            'store_seo_instructions' => '',
-            'brand_seo_instructions' => '',
-            'category_seo_instructions' => '',
-            'blog_seo_instructions' => '',
+            'global_instructions' => "اكتب محتوى عربي احترافي موجه للعميل السعودي.
+ركّز على مساعدة العميل في اتخاذ قرار الشراء.
+اجعل النص:
+- واضح
+- سهل القراءة
+- عملي (يفيد العميل فعليًا)
+
+القواعد:
+- لا تنسخ من المنافسين
+- لا تخترع معلومات أو مواصفات
+- استخدم اسم المنتج + البراند بشكل طبيعي
+- ركّز على الفوائد (مو الوصف فقط)
+- تجنب الحشو والكلمات الفارغة
+- لا تذكر مواقع أو منافسين
+- لا تضع روابط خارجية (فقط روابط داخلية)
+
+الهدف:
+- رفع التحويل (Conversion)
+- تحسين SEO",
+            'product_description_instructions' => "🧩 أهم نقطة: تحديد نوع المنتج
+
+قبل كتابة أي وصف لازم تحدد نوع المنتج:
+• ملابس (رجالي / نسائي)
+• أحذية
+• إكسسوارات
+• إلكترونيات
+• أدوات منزلية
+
+🧠 قواعد حسب نوع المنتج (عام)
+
+إذا المنتج ملابس:
+ركّز على:
+- الخامة
+- المقاس
+- الراحة
+- الاستخدام (يومي / رسمي)
+
+إذا المنتج إلكتروني:
+ركّز على:
+- الأداء
+- المواصفات
+- الاستخدام العملي
+
+إذا المنتج تجميلي:
+ركّز على:
+- النتائج
+- المكونات
+- الأمان
+
+القاعدة الذهبية:
+👉 كل نوع له زاوية بيع مختلفة — لا تكتب وصف عام
+
+🧾 وصف المنتج (الزبدة العملية)
+
+الهدف:
+- محتوى مقنع + SEO
+- يساعد العميل يشتري
+
+الطول:
+800 – 1200 كلمة (أو أقل بدون حشو)
+
+🔗 الربط الداخلي (الزبدة)
+استخدم 2–3 روابط فقط من نفس المتجر مرتبطة مباشرة بالمنتج
+مثال (ملابس):
+- رابط فئة (فساتين)
+- رابط براند
+- رابط منتج مشابه
+
+🧱 هيكل الوصف (مهم جدًا)
+
+1. مقدمة (بدون عنوان)
+   - تعريف بالمنتج
+   - اسم المنتج
+   - البراند
+   - أهم ميزة
+
+2. H2: نظرة عامة على المنتج
+   - الشركة
+   - الفئة
+   - الاستخدام
+
+3. H2: أهم المميزات
+   - نقاط Bullet فقط
+
+4. H2: المواصفات
+   - فقط معلومات مؤكدة
+
+5. H2: التصميم وجودة التصنيع
+   - الشكل
+   - الخامة
+   - الراحة
+
+6. H2: الأداء وتجربة الاستخدام
+   (حسب نوع المنتج)
+   مثال ملابس:
+   - الراحة
+   - الحركة
+   - الاستخدام اليومي
+
+7. H2: تقييمنا للمنتج
+   - رأي واقعي بدون مبالغة
+
+8. H2: طريقة الاستخدام
+   - كيف يستخدم المنتج
+
+9. H2: مقارنة مع منتجات مشابهة
+   - فرق حقيقي فقط
+
+10. H2: لماذا يختار العملاء هذا المنتج
+    - نقاط إقناع
+
+11. H2: لمن يناسب هذا المنتج
+    - تحديد الجمهور
+
+12. H2: لماذا تشتري من متجرنا
+    - سرعة الشحن
+    - جودة
+    - ضمان
+
+13. H2: منتجات قد تهمك
+    - روابط داخلية فقط
+
+14. H2: الأسئلة الشائعة
+    - 5–7 أسئلة حقيقية
+
+⚠️ أهم الأخطاء (لازم تتجنبها)
+
+❌ كتابة وصف عام يصلح لأي منتج
+❌ اختراع مواصفات
+❌ تكرار الكلمات المفتاحية
+❌ حشو بدون فائدة
+❌ نسخ من المنافسين",
+            'meta_title_instructions' => "🏷️ Meta Title
+المطلوب:
+- 50-60 حرف
+- يبدأ باسم المنتج
+
+الصيغة: اسم المنتج + الفئة + ميزة قوية
+
+مثال (ملابس):
+فستان سهرة ساتان نسائي تصميم أنيق وقصة مريحة
+
+مثال (إلكترونيات):
+سماعة بلوتوث لاسلكية بجودة صوت عالية وعمر بطارية طويل
+
+تجنب:
+- التكرار
+- الكلمات المبالغ فيها
+- الحشو",
+            'meta_description_instructions' => "📝 Meta Description
+المطلوب:
+- 140-155 حرف
+- يحتوي اسم المنتج
+- يحفّز على الشراء
+
+الصيغة: اشتري + المنتج + ميزة + فائدة + عنصر ثقة
+
+مثال (ملابس):
+اشتري فستان سهرة ساتان نسائي بتصميم أنيق وخامة ناعمة مريحة. مثالي للمناسبات ويوفر لك إطلالة راقية بجودة عالية.
+
+مثال (إلكترونيات):
+اشتري سماعة بلوتوث لاسلكية بصوت واضح ونقي مع عزل ضوضاء متقدم. بطارية تدوم 24 ساعة وشحن سريع عبر USB-C.
+
+تجنب:
+- التكرار
+- الكلمات المبالغ فيها
+- الحشو",
+            'image_alt_instructions' => "🖼️ ALT للصور - القاعدة الذهبية:
+\"كل نوع له زاوية بيع مختلفة\"
+
+أمثلة حسب نوع المنتج:
+• ملابس: \"صورة فستان سهرة نسائي ساتان أرجواني، تصميم سهرة أنيق\"
+• إلكترونيات: \"سماعة بلوتوث لاسلكية بيضاء مع علبة شحن\"
+• تجميلي: \"عبوة كريم مرطب للوجه 50ml بتركيبة فيتامين E\"
+
+القواعد:
+- دقيق: يصف الصورة بشكل صحيح
+- طبيعي: يبدو كجملة عادية
+- واضح: يفهم منه محتوى الصورة
+- يتضمن اسم المنتج عند الإمكان
+- 70-125 حرف تقريبًا",
+            'store_seo_instructions' => $this->getDefaultStoreSeoInstructions(),
+            'brand_seo_instructions' => $this->getDefaultBrandSeoInstructions(),
+            'category_seo_instructions' => $this->getDefaultCategorySeoInstructions(),
+            'blog_seo_instructions' => $this->getDefaultBlogSeoInstructions(),
+            'business_brand_name' => '',
+            'business_overview' => '',
+            'sitemap_url' => '',
+            'sitemap_links_count' => 0,
+            'sitemap_last_fetched_at' => '',
         ];
     }
+
+    private function pickInstructionWithDefault(array $settings, string $key, string $default): string
+    {
+        $value = trim((string) ($settings[$key] ?? ''));
+        return $value !== '' ? $value : $default;
+    }
+
+    private function getDefaultStoreSeoInstructions(): string
+    {
+        return <<<'TEXT'
+تعليمات سيو المتجر 
+🎯 الهدف:
+إنشاء محتوى الصفحة الرئيسية لمتجر إلكتروني بطريقة محسنة لمحركات البحث وتزيد معدل التحويل.
+
+🧠 آلية العمل:
+اقرأ بيانات المتجر (اسم، فئات، منتجات)، واستنتج:
+- النشاط
+- الفئة المستهدفة
+- الكلمات المفتاحية الأساسية
+
+━━━━━━━━━━━━━━━
+
+✍️ القواعد:
+
+✔️ اجمع بين SEO + التسويق
+✔️ ركز على الفائدة
+✔️ استخدم كلمات طبيعية
+
+🚫 تجنب:
+- الحشو
+- الكلام العام
+- تكرار نفس الجمل
+
+━━━━━━━━━━━━━━━
+
+🧱 المطلوب:
+
+1️⃣ Meta Title
+- يحتوي:
+اسم المتجر + النشاط + ميزة
+
+2️⃣ Meta Description
+- وصف المتجر + ميزة + CTA
+
+3️⃣ Hero Title
+- جملة قوية تحتوي الكلمة المفتاحية
+
+4️⃣ Hero Description
+- ماذا يقدم المتجر + لماذا تختاره
+
+5️⃣ Sections:
+- الفئات
+- لماذا نحن
+- المنتجات المميزة
+
+6️⃣ SEO Paragraph (150–300 كلمة)
+- كلمات أساسية + طويلة + محلية
+
+7️⃣ CTA
+
+━━━━━━━━━━━━━━━
+
+📤 المخرجات:
+
+Meta Title:
+...
+
+Meta Description:
+...
+
+Hero Title:
+...
+
+Hero Description:
+...
+
+Sections:
+...
+
+SEO Paragraph:
+...
+
+CTA:
+...
+TEXT;
+    }
+
+    private function getDefaultBrandSeoInstructions(): string
+    {
+        return <<<'TEXT'
+تعليمات سيو الماركات 
+🎯 الهدف:
+إنشاء صفحة SEO لبراند داخل متجر إلكتروني بهدف السيطرة على نتائج البحث الخاصة بالبراند.
+
+🧠 آلية العمل:
+اقرأ بيانات البراند والمنتجات المرتبطة به واستنتج:
+- نوع المنتجات
+- شهرة البراند
+- نية البحث (شراء / معلومات)
+
+━━━━━━━━━━━━━━━
+
+✍️ القواعد:
+
+✔️ ركز على اسم البراند + نوع المنتجات
+✔️ اجعل الصفحة مرجع للبراند
+✔️ اكتب محتوى مفيد وليس تسويقي فقط
+
+🚫 تجنب:
+- معلومات غير مؤكدة
+- مبالغة
+- حشو
+
+━━━━━━━━━━━━━━━
+
+🧱 المطلوب:
+
+1️⃣ Meta Title
+- اسم البراند + نوع المنتجات + ميزة
+
+2️⃣ Meta Description
+- تعريف + فائدة + CTA
+
+3️⃣ H1
+- اسم البراند + الفئة
+
+4️⃣ وصف البراند (300–600 كلمة)
+يشمل:
+- تعريف بالبراند
+- نوع المنتجات
+- لماذا مميز
+- الفئة المستهدفة
+
+5️⃣ لماذا تختار هذا البراند
+- نقاط واضحة
+
+6️⃣ منتجات البراند
+- وصف يدعم SEO
+
+7️⃣ FAQ (3–5 أسئلة)
+
+━━━━━━━━━━━━━━━
+
+📤 المخرجات:
+
+Meta Title:
+...
+
+Meta Description:
+...
+
+H1:
+...
+
+Brand Description:
+...
+
+Why This Brand:
+...
+
+FAQ:
+...
+TEXT;
+    }
+
+    private function getDefaultCategorySeoInstructions(): string
+    {
+        return <<<'TEXT'
+تعليمات سيو الأقسام 
+🎯 الهدف:
+إنشاء محتوى SEO احترافي لصفحات الأقسام في متجر إلكتروني يركز على رفع الترتيب في Google وزيادة المبيعات.
+
+🧠 آلية العمل:
+اقرأ بيانات المتجر (الفئات، المنتجات، الأسماء، الوصف) واستنتج:
+- نوع القسم
+- الكلمات المفتاحية الأساسية
+- نية البحث (شراء / تصفح / مقارنة)
+
+━━━━━━━━━━━━━━━
+
+✍️ القواعد:
+
+✔️ ركز على الكلمة المفتاحية الرئيسية للقسم
+✔️ استخدم كلمات طويلة (Long-tail)
+✔️ اكتب محتوى يخدم قرار الشراء
+✔️ النص يكون طبيعي بدون حشو
+
+🚫 تجنب:
+- تكرار اسم المتجر
+- كتابة محتوى عام
+- حشو كلمات مفتاحية
+- نسخ محتوى
+
+━━━━━━━━━━━━━━━
+
+🧱 المطلوب:
+
+1️⃣ Meta Title
+- 50–60 حرف
+- الصيغة:
+اسم القسم + ميزة + موقع (اختياري) + | اسم المتجر (اختياري)
+
+2️⃣ Meta Description
+- 140–155 حرف
+- يحتوي:
+الكلمة + فائدة + CTA
+
+3️⃣ H1
+- يحتوي الكلمة المفتاحية فقط (بدون اسم المتجر)
+
+4️⃣ وصف القسم (200–400 كلمة)
+يجب أن يحتوي:
+- تعريف واضح
+- أنواع المنتجات
+- كيف يختار العميل
+- استخدام الكلمات المفتاحية بشكل طبيعي
+
+5️⃣ FAQ (3–5 أسئلة)
+- أسئلة حقيقية من نية البحث
+
+━━━━━━━━━━━━━━━
+
+📤 المخرجات:
+
+Meta Title:
+...
+
+Meta Description:
+...
+
+H1:
+...
+
+Description:
+...
+
+FAQ:
+...
+TEXT;
+    }
+
+    private function getDefaultBlogSeoInstructions(): string
+    {
+        return <<<'TEXT'
+تعليمات كتابة مقالات المدونة (قريبًا)
+🎯 الهدف:
+إنشاء مقالات متوافقة مع تحسين محركات البحث وجاهزة للنشر في مدونة سلة.
+
+🧠 آلية العمل:
+- اختيار كلمة مفتاحية رئيسية للمقال
+- استخراج كلمات طويلة داعمة (Long-tail)
+- بناء هيكل H1 / H2 / H3 واضح
+- إضافة ربط داخلي مع المنتجات والأقسام ذات الصلة
+
+✍️ القواعد:
+✔️ محتوى مفيد وعملي للقارئ
+✔️ لغة طبيعية بدون حشو
+✔️ مراعاة نية البحث
+✔️ خاتمة مع CTA واضح
+TEXT;
+    }
+
 
     private function normalizeText(string $value, int $maxLen): string
     {
