@@ -9,6 +9,7 @@ use App\Repositories\StoreRepository;
 use App\Services\DataForSeoClient;
 use App\Services\OpenAICostCalculator;
 use App\Services\OpenAIClient;
+use App\Services\SitemapService;
 use App\Services\SubscriptionManager;
 use App\Support\Database;
 use App\Support\Plans;
@@ -70,6 +71,59 @@ final class StandaloneController
             'success' => true,
             'message' => 'Settings saved.',
             'settings' => $settings,
+        ]);
+    }
+
+    public function saveSitemapSettings(): void
+    {
+        $store = $this->resolveStore();
+        if ($store === null) {
+            Response::json(['success' => false, 'message' => 'Unauthorized'], 401);
+            return;
+        }
+
+        $input = Request::input();
+        $currentSettings = $this->normalizeSettings((array) ($store['settings'] ?? []));
+        $sitemapUrl = $this->normalizeSitemapUrl(trim((string) ($input['sitemap_url'] ?? '')));
+
+        $mergedSettings = $currentSettings;
+        $mergedSettings['sitemap_url'] = $sitemapUrl;
+        $message = 'تم حفظ رابط السايت ماب.';
+
+        if ($sitemapUrl !== '') {
+            try {
+                $sitemap = (new SitemapService())->fetchAndParse($sitemapUrl);
+                $links = is_array($sitemap['links'] ?? null) ? (array) $sitemap['links'] : [];
+
+                $mergedSettings['sitemap_links_cache'] = $this->normalizeSitemapLinksCache($links);
+                $mergedSettings['sitemap_links_count'] = (int) ($sitemap['links_count'] ?? count($mergedSettings['sitemap_links_cache']));
+                $mergedSettings['sitemap_last_fetched_at'] = (string) ($sitemap['fetched_at'] ?? date(DATE_ATOM));
+
+                $message = 'تم جلب روابط السايت ماب بنجاح: ' . $mergedSettings['sitemap_links_count'] . ' رابط.';
+            } catch (\Throwable $exception) {
+                $mergedSettings['sitemap_links_cache'] = $this->normalizeSitemapLinksCache((array) ($currentSettings['sitemap_links_cache'] ?? []));
+                $mergedSettings['sitemap_links_count'] = (int) ($currentSettings['sitemap_links_count'] ?? count($mergedSettings['sitemap_links_cache']));
+                $mergedSettings['sitemap_last_fetched_at'] = (string) ($currentSettings['sitemap_last_fetched_at'] ?? '');
+
+                $message = 'تم الحفظ. ملاحظة: تعذر جلب روابط السايت ماب - ' . $exception->getMessage();
+            }
+        } else {
+            $mergedSettings['sitemap_links_cache'] = [];
+            $mergedSettings['sitemap_links_count'] = 0;
+            $mergedSettings['sitemap_last_fetched_at'] = '';
+            $message = 'تم حذف رابط السايت ماب.';
+        }
+
+        $this->saveStore((string) ($store['merchant_id'] ?? ''), [
+            'settings' => $mergedSettings,
+        ]);
+
+        Response::json([
+            'success' => true,
+            'message' => $message,
+            'links_count' => (int) ($mergedSettings['sitemap_links_count'] ?? 0),
+            'last_fetched' => (string) ($mergedSettings['sitemap_last_fetched_at'] ?? ''),
+            'settings' => $this->normalizeSettings($mergedSettings),
         ]);
     }
 
@@ -477,6 +531,9 @@ final class StandaloneController
         }
 
         $logs = array_reverse((array) ($store['usage_logs'] ?? []));
+        if ($logs === []) {
+            $logs = $this->fallbackOperationsFromDatabase();
+        }
 
         Response::json([
             'success' => true,
@@ -598,6 +655,45 @@ final class StandaloneController
         return date(DATE_ATOM, $timestamp);
     }
 
+    private function fallbackOperationsFromDatabase(): array
+    {
+        $dbStore = $this->resolveDbStore();
+        if ($dbStore === null) {
+            return [];
+        }
+
+        $repository = new SaaSRepository();
+        $storeId = (int) ($dbStore['id'] ?? 0);
+        if ($storeId <= 0) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($repository->listStoreAiUsageLogs($storeId, 100) as $row) {
+            $rows[] = [
+                'used_at' => (string) ($row['created_at'] ?? ''),
+                'mode' => (string) ($row['mode'] ?? 'ai'),
+                'product_name' => (string) ($row['product_id'] ?? 'AI'),
+                'status' => 'completed',
+            ];
+        }
+
+        foreach ($repository->listStoreDataForSeoUsageLogs($storeId, 100) as $row) {
+            $rows[] = [
+                'used_at' => (string) ($row['created_at'] ?? ''),
+                'mode' => (string) ($row['mode'] ?? 'dataforseo'),
+                'product_name' => (string) ($row['target'] ?? ''),
+                'status' => 'completed',
+            ];
+        }
+
+        usort($rows, static function (array $a, array $b): int {
+            return strcmp((string) ($b['used_at'] ?? ''), (string) ($a['used_at'] ?? ''));
+        });
+
+        return $rows;
+    }
+
     private function normalizeSettings(array $settings): array
     {
         $defaults = $this->defaultSettings();
@@ -605,6 +701,9 @@ final class StandaloneController
         if (!in_array($language, ['ar', 'en'], true)) {
             $language = 'ar';
         }
+        $normalizedSitemapLinksCache = $this->normalizeSitemapLinksCache(
+            is_array($settings['sitemap_links_cache'] ?? null) ? (array) $settings['sitemap_links_cache'] : []
+        );
 
         return [
             'output_language' => $language,
@@ -618,6 +717,10 @@ final class StandaloneController
             'blog_seo_instructions' => $this->normalizeText($this->pickInstructionWithDefault($settings, 'blog_seo_instructions', (string) $defaults['blog_seo_instructions']), 5000),
             'business_brand_name' => $this->normalizeText((string) ($settings['business_brand_name'] ?? ''), 160),
             'business_overview' => $this->normalizeText((string) ($settings['business_overview'] ?? ''), 1500),
+            'sitemap_url' => $this->normalizeSitemapUrl((string) ($settings['sitemap_url'] ?? '')),
+            'sitemap_links_cache' => $normalizedSitemapLinksCache,
+            'sitemap_links_count' => (int) ($settings['sitemap_links_count'] ?? count($normalizedSitemapLinksCache)),
+            'sitemap_last_fetched_at' => (string) ($settings['sitemap_last_fetched_at'] ?? ''),
             'keyword_history' => is_array($settings['keyword_history'] ?? null) ? array_slice((array) $settings['keyword_history'], -100) : [],
             'domain_seo' => is_array($settings['domain_seo'] ?? null) ? (array) $settings['domain_seo'] : [
                 'domain' => '',
@@ -824,9 +927,71 @@ final class StandaloneController
             'business_brand_name' => '',
             'business_overview' => '',
             'sitemap_url' => '',
+            'sitemap_links_cache' => [],
             'sitemap_links_count' => 0,
             'sitemap_last_fetched_at' => '',
         ];
+    }
+
+    private function normalizeSitemapUrl(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+        if (!str_contains($value, '://')) {
+            $value = 'https://' . $value;
+        }
+
+        $parts = parse_url($value);
+        if (!is_array($parts)) {
+            return '';
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? 'https'));
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return '';
+        }
+
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        if ($host === '') {
+            return '';
+        }
+
+        $path = (string) ($parts['path'] ?? '');
+        if ($path === '') {
+            $path = '/sitemap.xml';
+        }
+
+        $query = isset($parts['query']) && $parts['query'] !== '' ? ('?' . $parts['query']) : '';
+        return $scheme . '://' . $host . $path . $query;
+    }
+
+    private function normalizeSitemapLinksCache(array $items): array
+    {
+        $rows = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $url = trim((string) ($item['url'] ?? ''));
+            if ($url === '') {
+                continue;
+            }
+
+            $rows[] = [
+                'url' => $url,
+                'title' => trim((string) ($item['title'] ?? '')),
+                'type' => trim((string) ($item['type'] ?? 'page')),
+            ];
+
+            if (count($rows) >= 1500) {
+                break;
+            }
+        }
+
+        return $rows;
     }
 
     private function pickInstructionWithDefault(array $settings, string $key, string $default): string

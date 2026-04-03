@@ -906,7 +906,7 @@ METADATA: metadata_title (50-60 chars, start with product name), metadata_descri
             return '';
         }
 
-        $links = $this->pickRelevantSitemapLinks($product, $settings, 3);
+        $links = $this->pickRelevantSitemapLinks($product, $settings, 4);
         if ($links === []) {
             return 'If no internal links list is provided, skip internal links and continue normally.';
         }
@@ -917,7 +917,7 @@ METADATA: metadata_title (50-60 chars, start with product name), metadata_descri
             $rows[] = '- ' . $label . ' | ' . $link['url'] . ' | type=' . $link['type'];
         }
 
-        return "Use exactly 2-3 relevant internal links from this list inside the description body (never external links, never the same link repeated):\n"
+        return "Use exactly 2-4 relevant internal links from this list inside the description body (never external links, never the same link repeated):\n"
             . implode("\n", $rows)
             . "\nPlace links naturally in suitable sections using HTML anchor tags.";
     }

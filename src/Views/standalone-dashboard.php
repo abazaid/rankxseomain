@@ -62,6 +62,18 @@ if ($appBasePath === '/') {
             <label><strong>نبذة عن النشاط التجاري</strong></label>
             <textarea id="setting-business-overview" rows="3" placeholder="وش تبيع؟ مين جمهورك؟"></textarea>
           </div>
+          <div style="grid-column:1/-1;border:1px solid #FBBF24;background:#FEF3C7;border-radius:12px;padding:12px;">
+            <p style="margin:0 0 10px;color:#92400E;font-weight:700;">ربط السايت ماب (اختياري لكنه مهم)</p>
+            <p style="margin:0 0 12px;color:#78350F;font-size:13px;">بدون السايت ماب، لن يتم إضافة روابط داخلية للمنتجات أثناء التوليد.</p>
+            <label for="setting-sitemap-url"><strong>رابط السايت ماب</strong></label>
+            <input id="setting-sitemap-url" type="url" placeholder="https://yourstore.com/sitemap.xml" style="margin-top:8px;width:100%;padding:10px;border-radius:8px;border:1px solid #D97706;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;color:#92400E;font-size:13px;">
+              <span>الروابط المحفوظة: <strong id="setting-sitemap-links-count">0</strong></span>
+              <span id="setting-sitemap-last-fetched">لم يتم الجلب بعد</span>
+            </div>
+            <button id="save-sitemap-settings" class="btn btn-sky" type="button" style="margin-top:12px;">حفظ روابط السايت ماب</button>
+            <div id="sitemap-alert" style="margin-top:12px;"></div>
+          </div>
           <div style="grid-column:1/-1;">
             <label><strong>تعليمات عامة</strong></label>
             <textarea id="setting-global-instructions" rows="3"></textarea>
@@ -100,6 +112,7 @@ if ($appBasePath === '/') {
           <div><label><strong>اسم المنتج / الكلمة المفتاحية</strong></label><input id="product-keyword" type="text" placeholder="مثال: حذاء جري رجالي"></div>
           <div><label><strong>معلومات إضافية (اختياري)</strong></label><input id="product-context" type="text" placeholder="الخامة، الجمهور، السعر..."></div>
         </div>
+        <div id="product-alert"></div>
       </div>
       <div class="card"><h3 style="margin:0 0 10px;">المنتجات المولدة</h3><div id="products-list"></div></div>
     </section>
@@ -204,6 +217,7 @@ if ($appBasePath === '/') {
           <div><label><strong>اسم الماركة / الكلمة المفتاحية</strong></label><input id="brand-keyword" type="text"></div>
           <div><label><strong>معلومات إضافية (اختياري)</strong></label><input id="brand-context" type="text"></div>
         </div>
+        <div id="brand-alert"></div>
       </div>
       <div class="card"><h3 style="margin:0 0 10px;">الماركات المولدة</h3><div id="brands-list"></div></div>
     </section>
@@ -218,6 +232,7 @@ if ($appBasePath === '/') {
           <div><label><strong>اسم التصنيف / الكلمة المفتاحية</strong></label><input id="category-keyword" type="text"></div>
           <div><label><strong>معلومات إضافية (اختياري)</strong></label><input id="category-context" type="text"></div>
         </div>
+        <div id="category-alert"></div>
       </div>
       <div class="card"><h3 style="margin:0 0 10px;">التصنيفات المولدة</h3><div id="categories-list"></div></div>
     </section>
@@ -239,6 +254,44 @@ if ($appBasePath === '/') {
       </div>
     </section>
   </main>
+
+  <div id="generated-result-modal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <div class="pill" id="generated-result-type">نتيجة التوليد</div>
+          <h2 id="generated-result-title" style="margin:10px 0 6px;">-</h2>
+          <p id="generated-result-date" class="muted" style="margin:0;">-</p>
+        </div>
+        <button id="generated-result-close" class="btn btn-secondary" type="button">إغلاق</button>
+      </div>
+      <div class="panel-stack">
+        <div class="card surface-soft" style="box-shadow:none;">
+          <div class="section-head" style="margin-bottom:10px;">
+            <h3 style="margin:0;">وصف المحتوى</h3>
+            <button class="btn btn-secondary" type="button" data-copy-target="generated-result-description">نسخ الوصف</button>
+          </div>
+          <textarea id="generated-result-description" rows="10" readonly></textarea>
+        </div>
+        <div class="grid" style="margin-top:0;">
+          <div class="card surface-soft" style="box-shadow:none;">
+            <div class="section-head" style="margin-bottom:10px;">
+              <h3 style="margin:0;">Meta Title</h3>
+              <button class="btn btn-secondary" type="button" data-copy-target="generated-result-meta-title">نسخ</button>
+            </div>
+            <textarea id="generated-result-meta-title" rows="4" readonly></textarea>
+          </div>
+          <div class="card surface-soft" style="box-shadow:none;">
+            <div class="section-head" style="margin-bottom:10px;">
+              <h3 style="margin:0;">Meta Description</h3>
+              <button class="btn btn-secondary" type="button" data-copy-target="generated-result-meta-description">نسخ</button>
+            </div>
+            <textarea id="generated-result-meta-description" rows="6" readonly></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>

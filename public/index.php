@@ -42,6 +42,7 @@ $router->get('/dashboard', [AuthController::class, 'dashboard']);
 $router->get('/api/subscription', [StandaloneController::class, 'subscription']);
 $router->get('/api/settings', [StandaloneController::class, 'settings']);
 $router->post('/api/settings/save', [StandaloneController::class, 'saveSettings']);
+$router->post('/api/sitemap/save', [StandaloneController::class, 'saveSitemapSettings']);
 $router->get('/api/operations', [StandaloneController::class, 'operations']);
 $router->post('/api/items/generate', [StandaloneController::class, 'generateItem']);
 $router->get('/api/items', [StandaloneController::class, 'listItems']);

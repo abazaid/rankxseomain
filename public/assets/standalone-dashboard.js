@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   const shell = document.querySelector('.dashboard-shell');
   if (!shell) return;
 
@@ -9,6 +9,11 @@
     keywordHistory: [],
     domainSeo: null,
     domainHistory: [],
+    generatedItems: {
+      product: [],
+      brand: [],
+      category: [],
+    },
   };
 
   function escapeHtml(value) {
@@ -42,7 +47,7 @@
     const response = await fetch(`${appBasePath}/api${path}`, options);
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.success === false) {
-      throw new Error(data.message || `فشل الطلب (${response.status})`);
+      throw new Error(data.message || `ÙØ´Ù„ Ø§Ù„Ø·Ù„Ø¨ (${response.status})`);
     }
     return data;
   }
@@ -57,6 +62,20 @@
     root.innerHTML = `<div class="notice ${kind === 'error' ? 'error' : 'success'}">${escapeHtml(message)}</div>`;
   }
 
+  function setButtonLoading(button, loading, idleText, loadingText) {
+    if (!button) return;
+    button.disabled = loading;
+    button.textContent = loading ? loadingText : idleText;
+  }
+
+  function htmlToPlainText(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(raw, 'text/html');
+    return (doc.body.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
   function showSection(key) {
     document.querySelectorAll('[data-app-section]').forEach((section) => {
       section.style.display = section.dataset.appSection === key ? '' : 'none';
@@ -64,6 +83,9 @@
     document.querySelectorAll('.sidebar-link').forEach((button) => {
       button.classList.toggle('is-active', button.dataset.sectionTarget === key);
     });
+    if (key === 'operations') {
+      loadOperations();
+    }
   }
 
   function fillSettings(settings) {
@@ -71,6 +93,7 @@
       'setting-output-language': settings.output_language || 'ar',
       'setting-business-brand-name': settings.business_brand_name || '',
       'setting-business-overview': settings.business_overview || '',
+      'setting-sitemap-url': settings.sitemap_url || '',
       'setting-global-instructions': settings.global_instructions || '',
       'setting-product-description-instructions': settings.product_description_instructions || '',
       'setting-meta-title-instructions': settings.meta_title_instructions || '',
@@ -83,6 +106,25 @@
       const el = document.getElementById(id);
       if (el) el.value = value;
     });
+
+    const linksCountEl = document.getElementById('setting-sitemap-links-count');
+    if (linksCountEl) {
+      const count = Number(settings.sitemap_links_count || 0);
+      linksCountEl.textContent = `${count} روابط`;
+    }
+
+    const lastFetchedEl = document.getElementById('setting-sitemap-last-fetched');
+    if (lastFetchedEl) {
+      const raw = String(settings.sitemap_last_fetched_at || '').trim();
+      if (!raw) {
+        lastFetchedEl.textContent = 'لم يتم الجلب بعد';
+      } else {
+        const date = new Date(raw);
+        lastFetchedEl.textContent = Number.isNaN(date.getTime())
+          ? raw
+          : `${date.toLocaleDateString('ar-SA')} ${date.toLocaleTimeString('ar-SA')}`;
+      }
+    }
   }
 
   function readSettings() {
@@ -99,7 +141,7 @@
     };
   }
 
-  function renderItems(rootId, items, emptyText) {
+  function renderItems(type, rootId, items, emptyText) {
     const root = document.getElementById(rootId);
     if (!root) return;
 
@@ -108,17 +150,65 @@
       return;
     }
 
+    state.generatedItems[type] = items;
     root.innerHTML = items.map((item) => `
       <div class="card surface-soft" style="box-shadow:none;margin-bottom:12px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
           <strong>${escapeHtml(item.title || item.keyword || '-')}</strong>
           <span class="muted">${escapeHtml(formatDate(item.created_at || ''))}</span>
         </div>
-        <p style="margin:10px 0 6px;line-height:1.9;">${escapeHtml(item.description || '')}</p>
+        <p style="margin:10px 0 6px;line-height:1.9;">${escapeHtml(htmlToPlainText(item.description || '').slice(0, 280))}${(htmlToPlainText(item.description || '').length > 280) ? '...' : ''}</p>
         <p style="margin:0 0 4px;"><strong>Meta Title:</strong> ${escapeHtml(item.meta_title || '-')}</p>
         <p style="margin:0;"><strong>Meta Description:</strong> ${escapeHtml(item.meta_description || '-')}</p>
+        <div style="margin-top:10px;">
+          <button class="btn btn-secondary" type="button" data-open-generated-item="${escapeHtml(String(item.id || ''))}" data-open-generated-type="${escapeHtml(type)}">عرض ونسخ النتيجة</button>
+        </div>
       </div>
     `).join('');
+  }
+
+  function copyTextFromField(fieldId) {
+    const el = document.getElementById(fieldId);
+    if (!el) return;
+    const value = String(el.value || '').trim();
+    if (!value) return;
+    navigator.clipboard.writeText(value).catch(() => {});
+  }
+
+  function openGeneratedResultModal(item, type) {
+    if (!item) return;
+    const modal = document.getElementById('generated-result-modal');
+    if (!modal) return;
+
+    const typeLabels = {
+      product: 'نتيجة توليد سيو المنتج',
+      brand: 'نتيجة توليد سيو الماركة',
+      category: 'نتيجة توليد سيو التصنيف',
+    };
+
+    const titleEl = document.getElementById('generated-result-title');
+    const typeEl = document.getElementById('generated-result-type');
+    const dateEl = document.getElementById('generated-result-date');
+    const descEl = document.getElementById('generated-result-description');
+    const metaTitleEl = document.getElementById('generated-result-meta-title');
+    const metaDescEl = document.getElementById('generated-result-meta-description');
+
+    if (titleEl) titleEl.textContent = item.title || item.keyword || '-';
+    if (typeEl) typeEl.textContent = typeLabels[type] || 'نتيجة التوليد';
+    if (dateEl) dateEl.textContent = formatDate(item.created_at || '');
+    if (descEl) descEl.value = htmlToPlainText(item.description || '');
+    if (metaTitleEl) metaTitleEl.value = String(item.meta_title || '').trim();
+    if (metaDescEl) metaDescEl.value = String(item.meta_description || '').trim();
+
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeGeneratedResultModal() {
+    const modal = document.getElementById('generated-result-modal');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
   }
 
   function renderOperations(rows) {
@@ -126,7 +216,7 @@
     if (!root) return;
 
     if (!Array.isArray(rows) || rows.length === 0) {
-      root.innerHTML = '<div class="empty-state">لا يوجد عمليات مسجلة حتى الآن.</div>';
+      root.innerHTML = '<div class="empty-state">Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ø¹Ù…Ù„ÙŠØ§Øª Ù…Ø³Ø¬Ù„Ø© Ø­ØªÙ‰ Ø§Ù„Ø¢Ù†.</div>';
       return;
     }
 
@@ -135,10 +225,10 @@
         <table>
           <thead>
             <tr>
-              <th>الوقت</th>
-              <th>النوع</th>
-              <th>الهدف</th>
-              <th>الحالة</th>
+              <th>Ø§Ù„ÙˆÙ‚Øª</th>
+              <th>Ø§Ù„Ù†ÙˆØ¹</th>
+              <th>Ø§Ù„Ù‡Ø¯Ù</th>
+              <th>Ø§Ù„Ø­Ø§Ù„Ø©</th>
             </tr>
           </thead>
           <tbody>
@@ -162,8 +252,8 @@
     if (!root || !summary) return;
 
     if (!result) {
-      summary.textContent = 'أدخل كلمة مفتاحية ثم اضغط بحث.';
-      root.innerHTML = '<div class="empty-state"><p class="muted" style="margin:0;">لم يتم إجراء بحث بعد.</p></div>';
+      summary.textContent = 'Ø£Ø¯Ø®Ù„ ÙƒÙ„Ù…Ø© Ù…ÙØªØ§Ø­ÙŠØ© Ø«Ù… Ø§Ø¶ØºØ· Ø¨Ø­Ø«.';
+      root.innerHTML = '<div class="empty-state"><p class="muted" style="margin:0;">Ù„Ù… ÙŠØªÙ… Ø¥Ø¬Ø±Ø§Ø¡ Ø¨Ø­Ø« Ø¨Ø¹Ø¯.</p></div>';
       return;
     }
 
@@ -173,11 +263,11 @@
     const related = Array.isArray(result.related_keywords) ? result.related_keywords : [];
     const suggestions = Array.isArray(result.keyword_suggestions) ? result.keyword_suggestions : [];
 
-    summary.textContent = `الكلمة: ${result.keyword || '-'} • ${result.country_name || '-'} • ${result.language_name || '-'} • ${result.device || '-'}`;
+    summary.textContent = `Ø§Ù„ÙƒÙ„Ù…Ø©: ${result.keyword || '-'} â€¢ ${result.country_name || '-'} â€¢ ${result.language_name || '-'} â€¢ ${result.device || '-'}`;
 
     const trendRows = trend.length
       ? trend.map((row) => `<tr><td>${escapeHtml(String(row.year || '-'))}/${escapeHtml(String(row.month || '-'))}</td><td>${escapeHtml(formatNumber(row.search_volume || 0))}</td></tr>`).join('')
-      : '<tr><td colspan="2" class="muted">لا يوجد ترند متاح.</td></tr>';
+      : '<tr><td colspan="2" class="muted">Ù„Ø§ ÙŠÙˆØ¬Ø¯ ØªØ±Ù†Ø¯ Ù…ØªØ§Ø­.</td></tr>';
 
     const serpRows = serpItems.length
       ? serpItems.map((row) => `
@@ -187,7 +277,7 @@
             <td>${escapeHtml(row.domain || '-')}</td>
           </tr>
         `).join('')
-      : '<tr><td colspan="3" class="muted">لا توجد نتائج SERP متاحة.</td></tr>';
+      : '<tr><td colspan="3" class="muted">Ù„Ø§ ØªÙˆØ¬Ø¯ Ù†ØªØ§Ø¦Ø¬ SERP Ù…ØªØ§Ø­Ø©.</td></tr>';
 
     const relatedRows = related.slice(0, 30).map((row, idx) => `
       <tr>
@@ -197,7 +287,7 @@
         <td>${escapeHtml(String(row.competition_level || row.competition || '-'))}</td>
         <td>${escapeHtml(formatUsd(row.cpc || 0))}</td>
       </tr>
-    `).join('') || '<tr><td colspan="5" class="muted">لا توجد كلمات مرتبطة.</td></tr>';
+    `).join('') || '<tr><td colspan="5" class="muted">Ù„Ø§ ØªÙˆØ¬Ø¯ ÙƒÙ„Ù…Ø§Øª Ù…Ø±ØªØ¨Ø·Ø©.</td></tr>';
 
     const suggestionRows = suggestions.slice(0, 30).map((row, idx) => `
       <tr>
@@ -207,16 +297,16 @@
         <td>${escapeHtml(String(row.competition_level || row.competition || '-'))}</td>
         <td>${escapeHtml(formatUsd(row.cpc || 0))}</td>
       </tr>
-    `).join('') || '<tr><td colspan="5" class="muted">لا توجد اقتراحات متاحة.</td></tr>';
+    `).join('') || '<tr><td colspan="5" class="muted">Ù„Ø§ ØªÙˆØ¬Ø¯ Ø§Ù‚ØªØ±Ø§Ø­Ø§Øª Ù…ØªØ§Ø­Ø©.</td></tr>';
 
     root.innerHTML = `
       <div class="grid" style="margin-top:0;">
         <div class="card surface-soft stat" style="min-height:auto;box-shadow:none;">
-          <span class="stat-label">حجم البحث</span>
+          <span class="stat-label">Ø­Ø¬Ù… Ø§Ù„Ø¨Ø­Ø«</span>
           <span class="stat-value">${escapeHtml(formatNumber(metrics.search_volume || 0))}</span>
         </div>
         <div class="card surface-soft stat" style="min-height:auto;box-shadow:none;">
-          <span class="stat-label">المنافسة</span>
+          <span class="stat-label">Ø§Ù„Ù…Ù†Ø§ÙØ³Ø©</span>
           <span class="stat-value">${escapeHtml(String(metrics.competition_level || metrics.competition || 0))}</span>
         </div>
         <div class="card surface-soft stat" style="min-height:auto;box-shadow:none;">
@@ -227,19 +317,19 @@
 
       <div class="grid" style="margin-top:14px;">
         <div class="card surface-soft" style="box-shadow:none;">
-          <h3 style="margin:0 0 10px;">ترند البحث الشهري</h3>
+          <h3 style="margin:0 0 10px;">ØªØ±Ù†Ø¯ Ø§Ù„Ø¨Ø­Ø« Ø§Ù„Ø´Ù‡Ø±ÙŠ</h3>
           <div style="overflow:auto;max-height:330px;">
             <table style="min-width:360px;">
-              <thead><tr><th>الشهر</th><th>حجم البحث</th></tr></thead>
+              <thead><tr><th>Ø§Ù„Ø´Ù‡Ø±</th><th>Ø­Ø¬Ù… Ø§Ù„Ø¨Ø­Ø«</th></tr></thead>
               <tbody>${trendRows}</tbody>
             </table>
           </div>
         </div>
         <div class="card surface-soft" style="box-shadow:none;">
-          <h3 style="margin:0 0 10px;">أعلى نتائج البحث (SERP)</h3>
+          <h3 style="margin:0 0 10px;">Ø£Ø¹Ù„Ù‰ Ù†ØªØ§Ø¦Ø¬ Ø§Ù„Ø¨Ø­Ø« (SERP)</h3>
           <div style="overflow:auto;max-height:330px;">
             <table style="min-width:720px;">
-              <thead><tr><th>الترتيب</th><th>العنوان</th><th>الدومين</th></tr></thead>
+              <thead><tr><th>Ø§Ù„ØªØ±ØªÙŠØ¨</th><th>Ø§Ù„Ø¹Ù†ÙˆØ§Ù†</th><th>Ø§Ù„Ø¯ÙˆÙ…ÙŠÙ†</th></tr></thead>
               <tbody>${serpRows}</tbody>
             </table>
           </div>
@@ -247,20 +337,20 @@
       </div>
 
       <div class="card surface-soft" style="box-shadow:none;margin-top:14px;">
-        <h3 style="margin:0 0 10px;">الكلمات المرتبطة</h3>
+        <h3 style="margin:0 0 10px;">Ø§Ù„ÙƒÙ„Ù…Ø§Øª Ø§Ù„Ù…Ø±ØªØ¨Ø·Ø©</h3>
         <div style="overflow:auto;max-height:360px;">
           <table style="min-width:820px;">
-            <thead><tr><th>#</th><th>الكلمة</th><th>الحجم</th><th>المنافسة</th><th>CPC</th></tr></thead>
+            <thead><tr><th>#</th><th>Ø§Ù„ÙƒÙ„Ù…Ø©</th><th>Ø§Ù„Ø­Ø¬Ù…</th><th>Ø§Ù„Ù…Ù†Ø§ÙØ³Ø©</th><th>CPC</th></tr></thead>
             <tbody>${relatedRows}</tbody>
           </table>
         </div>
       </div>
 
       <div class="card surface-soft" style="box-shadow:none;margin-top:14px;">
-        <h3 style="margin:0 0 10px;">اقتراحات كلمات إضافية</h3>
+        <h3 style="margin:0 0 10px;">Ø§Ù‚ØªØ±Ø§Ø­Ø§Øª ÙƒÙ„Ù…Ø§Øª Ø¥Ø¶Ø§ÙÙŠØ©</h3>
         <div style="overflow:auto;max-height:360px;">
           <table style="min-width:820px;">
-            <thead><tr><th>#</th><th>الكلمة</th><th>الحجم</th><th>المنافسة</th><th>CPC</th></tr></thead>
+            <thead><tr><th>#</th><th>Ø§Ù„ÙƒÙ„Ù…Ø©</th><th>Ø§Ù„Ø­Ø¬Ù…</th><th>Ø§Ù„Ù…Ù†Ø§ÙØ³Ø©</th><th>CPC</th></tr></thead>
             <tbody>${suggestionRows}</tbody>
           </table>
         </div>
@@ -273,7 +363,7 @@
     if (!root) return;
 
     if (!Array.isArray(rows) || rows.length === 0) {
-      root.innerHTML = '<div class="empty-state"><p class="muted" style="margin:0;">لا يوجد سجل بحث حتى الآن.</p></div>';
+      root.innerHTML = '<div class="empty-state"><p class="muted" style="margin:0;">Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ø³Ø¬Ù„ Ø¨Ø­Ø« Ø­ØªÙ‰ Ø§Ù„Ø¢Ù†.</p></div>';
       return;
     }
 
@@ -284,8 +374,8 @@
           <span class="muted">${escapeHtml(formatDate(row.created_at || ''))}</span>
         </summary>
         <div style="margin-top:10px;">
-          <p class="muted" style="margin:0 0 10px;">${escapeHtml(row.country || '-')} • ${escapeHtml(row.device || '-')}</p>
-          <button class="btn btn-secondary" type="button" data-keyword-history-index="${index}">عرض التقرير</button>
+          <p class="muted" style="margin:0 0 10px;">${escapeHtml(row.country || '-')} â€¢ ${escapeHtml(row.device || '-')}</p>
+          <button class="btn btn-secondary" type="button" data-keyword-history-index="${index}">Ø¹Ø±Ø¶ Ø§Ù„ØªÙ‚Ø±ÙŠØ±</button>
         </div>
       </details>
     `).join('');
@@ -296,7 +386,7 @@
         if (idx >= 0 && rows[idx] && rows[idx].result) {
           state.keywordLastResult = rows[idx].result;
           renderKeywordResults(state.keywordLastResult);
-          setNotice('keyword-alert', 'تم تحميل التقرير من السجل.');
+          setNotice('keyword-alert', 'ØªÙ… ØªØ­Ù…ÙŠÙ„ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ù…Ù† Ø§Ù„Ø³Ø¬Ù„.');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       });
@@ -309,8 +399,8 @@
     if (!root || !summary) return;
 
     if (!payload || !payload.last_data) {
-      summary.textContent = 'احفظ الدومين واضغط تحديث البيانات.';
-      root.innerHTML = '<div class="empty-state"><p class="muted" style="margin:0;">لا توجد بيانات دومين محفوظة بعد.</p></div>';
+      summary.textContent = 'Ø§Ø­ÙØ¸ Ø§Ù„Ø¯ÙˆÙ…ÙŠÙ† ÙˆØ§Ø¶ØºØ· ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª.';
+      root.innerHTML = '<div class="empty-state"><p class="muted" style="margin:0;">Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¨ÙŠØ§Ù†Ø§Øª Ø¯ÙˆÙ…ÙŠÙ† Ù…Ø­ÙÙˆØ¸Ø© Ø¨Ø¹Ø¯.</p></div>';
       return;
     }
 
@@ -323,7 +413,7 @@
     const allKeywords = Array.isArray(data.all_keywords) ? data.all_keywords : [];
     const refreshedAt = payload.refreshed_at || data.fetched_at || '';
 
-    summary.textContent = `الدومين: ${payload.domain || data.domain || '-'} • ${payload.device || data.device || '-'} • آخر تحديث: ${formatDate(refreshedAt)}`;
+    summary.textContent = `Ø§Ù„Ø¯ÙˆÙ…ÙŠÙ†: ${payload.domain || data.domain || '-'} â€¢ ${payload.device || data.device || '-'} â€¢ Ø¢Ø®Ø± ØªØ­Ø¯ÙŠØ«: ${formatDate(refreshedAt)}`;
 
     const competitorsRows = competitors.map((row, idx) => `
       <tr>
@@ -333,7 +423,7 @@
         <td>${escapeHtml(formatNumber(row.avg_position || 0))}</td>
         <td>${escapeHtml(formatNumber(row.organic_keywords || 0))}</td>
       </tr>
-    `).join('') || '<tr><td colspan="5" class="muted">لا توجد بيانات منافسين.</td></tr>';
+    `).join('') || '<tr><td colspan="5" class="muted">Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¨ÙŠØ§Ù†Ø§Øª Ù…Ù†Ø§ÙØ³ÙŠÙ†.</td></tr>';
 
     const topKeywordRows = topKeywords.map((row, idx) => `
       <tr>
@@ -344,7 +434,7 @@
         <td>${escapeHtml(formatUsd(row.cpc || 0))}</td>
         <td>${escapeHtml(row.intent || '-')}</td>
       </tr>
-    `).join('') || '<tr><td colspan="6" class="muted">لا توجد كلمات مرتبة.</td></tr>';
+    `).join('') || '<tr><td colspan="6" class="muted">Ù„Ø§ ØªÙˆØ¬Ø¯ ÙƒÙ„Ù…Ø§Øª Ù…Ø±ØªØ¨Ø©.</td></tr>';
 
     const allKeywordRows = allKeywords.map((row, idx) => `
       <tr>
@@ -355,7 +445,7 @@
         <td>${escapeHtml(formatUsd(row.cpc || 0))}</td>
         <td>${escapeHtml(row.intent || '-')}</td>
       </tr>
-    `).join('') || '<tr><td colspan="6" class="muted">لا توجد بيانات إضافية.</td></tr>';
+    `).join('') || '<tr><td colspan="6" class="muted">Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¨ÙŠØ§Ù†Ø§Øª Ø¥Ø¶Ø§ÙÙŠØ©.</td></tr>';
 
     root.innerHTML = `
       <div class="grid" style="margin-top:0;">
@@ -386,18 +476,18 @@
       </div>
 
       <div class="card surface-soft" style="box-shadow:none;margin-top:14px;">
-        <h3 style="margin:0 0 10px;">أهم الكلمات المرتبة</h3>
+        <h3 style="margin:0 0 10px;">Ø£Ù‡Ù… Ø§Ù„ÙƒÙ„Ù…Ø§Øª Ø§Ù„Ù…Ø±ØªØ¨Ø©</h3>
         <div style="overflow:auto;max-height:360px;">
           <table style="min-width:860px;">
-            <thead><tr><th>#</th><th>الكلمة</th><th>الترتيب</th><th>الحجم</th><th>CPC</th><th>النية</th></tr></thead>
+            <thead><tr><th>#</th><th>Ø§Ù„ÙƒÙ„Ù…Ø©</th><th>Ø§Ù„ØªØ±ØªÙŠØ¨</th><th>Ø§Ù„Ø­Ø¬Ù…</th><th>CPC</th><th>Ø§Ù„Ù†ÙŠØ©</th></tr></thead>
             <tbody>${topKeywordRows}</tbody>
           </table>
         </div>
         <details style="margin-top:12px;">
-          <summary style="cursor:pointer;">استعراض كل الكلمات (${escapeHtml(formatNumber(allKeywords.length))})</summary>
+          <summary style="cursor:pointer;">Ø§Ø³ØªØ¹Ø±Ø§Ø¶ ÙƒÙ„ Ø§Ù„ÙƒÙ„Ù…Ø§Øª (${escapeHtml(formatNumber(allKeywords.length))})</summary>
           <div style="overflow:auto;max-height:360px;margin-top:8px;">
             <table style="min-width:860px;">
-              <thead><tr><th>#</th><th>الكلمة</th><th>الترتيب</th><th>الحجم</th><th>CPC</th><th>النية</th></tr></thead>
+              <thead><tr><th>#</th><th>Ø§Ù„ÙƒÙ„Ù…Ø©</th><th>Ø§Ù„ØªØ±ØªÙŠØ¨</th><th>Ø§Ù„Ø­Ø¬Ù…</th><th>CPC</th><th>Ø§Ù„Ù†ÙŠØ©</th></tr></thead>
               <tbody>${allKeywordRows}</tbody>
             </table>
           </div>
@@ -405,10 +495,10 @@
       </div>
 
       <div class="card surface-soft" style="box-shadow:none;margin-top:14px;">
-        <h3 style="margin:0 0 10px;">أهم المنافسين</h3>
+        <h3 style="margin:0 0 10px;">Ø£Ù‡Ù… Ø§Ù„Ù…Ù†Ø§ÙØ³ÙŠÙ†</h3>
         <div style="overflow:auto;max-height:360px;">
           <table style="min-width:760px;">
-            <thead><tr><th>#</th><th>الدومين</th><th>تقاطع الكلمات</th><th>متوسط الترتيب</th><th>Organic Keywords</th></tr></thead>
+            <thead><tr><th>#</th><th>Ø§Ù„Ø¯ÙˆÙ…ÙŠÙ†</th><th>ØªÙ‚Ø§Ø·Ø¹ Ø§Ù„ÙƒÙ„Ù…Ø§Øª</th><th>Ù…ØªÙˆØ³Ø· Ø§Ù„ØªØ±ØªÙŠØ¨</th><th>Organic Keywords</th></tr></thead>
             <tbody>${competitorsRows}</tbody>
           </table>
         </div>
@@ -421,7 +511,7 @@
     if (!root) return;
 
     if (!Array.isArray(rows) || rows.length === 0) {
-      root.innerHTML = '<div class="empty-state"><p class="muted" style="margin:0;">لا يوجد سجل تحليل للدومين حتى الآن.</p></div>';
+      root.innerHTML = '<div class="empty-state"><p class="muted" style="margin:0;">Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ø³Ø¬Ù„ ØªØ­Ù„ÙŠÙ„ Ù„Ù„Ø¯ÙˆÙ…ÙŠÙ† Ø­ØªÙ‰ Ø§Ù„Ø¢Ù†.</p></div>';
       return;
     }
 
@@ -432,8 +522,8 @@
           <span class="muted">${escapeHtml(formatDate(row.created_at || ''))}</span>
         </summary>
         <div style="margin-top:10px;">
-          <p class="muted" style="margin:0 0 10px;">الجهاز: ${escapeHtml(row.device || '-')}</p>
-          <button class="btn btn-secondary" type="button" data-domain-history-index="${index}">عرض التقرير</button>
+          <p class="muted" style="margin:0 0 10px;">Ø§Ù„Ø¬Ù‡Ø§Ø²: ${escapeHtml(row.device || '-')}</p>
+          <button class="btn btn-secondary" type="button" data-domain-history-index="${index}">Ø¹Ø±Ø¶ Ø§Ù„ØªÙ‚Ø±ÙŠØ±</button>
         </div>
       </details>
     `).join('');
@@ -450,7 +540,7 @@
             last_data: selected.result || null,
           };
           renderDomainResults(payload);
-          setNotice('domain-seo-alert', 'تم تحميل تقرير من السجل.');
+          setNotice('domain-seo-alert', 'ØªÙ… ØªØ­Ù…ÙŠÙ„ ØªÙ‚Ø±ÙŠØ± Ù…Ù† Ø§Ù„Ø³Ø¬Ù„.');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       });
@@ -465,15 +555,15 @@
       const sub = data.subscription || {};
       root.innerHTML = `
         <div class="card surface-soft stat">
-          <span class="stat-label">الباقة</span>
+          <span class="stat-label">Ø§Ù„Ø¨Ø§Ù‚Ø©</span>
           <span class="stat-value" style="font-size:26px;">${escapeHtml(sub.plan_name || '-')}</span>
         </div>
         <div class="card surface-soft stat">
-          <span class="stat-label">الحالة</span>
+          <span class="stat-label">Ø§Ù„Ø­Ø§Ù„Ø©</span>
           <span class="stat-value" style="font-size:26px;">${escapeHtml(sub.status || '-')}</span>
         </div>
         <div class="card surface-soft stat">
-          <span class="stat-label">الاستهلاك</span>
+          <span class="stat-label">Ø§Ù„Ø§Ø³ØªÙ‡Ù„Ø§Ùƒ</span>
           <span class="stat-value">${escapeHtml(formatNumber(sub.used_products || 0))} / ${escapeHtml(formatNumber(sub.product_quota || 0))}</span>
         </div>
       `;
@@ -500,9 +590,64 @@
         body: JSON.stringify(payload),
       });
       fillSettings(data.settings || payload);
-      setNotice('settings-alert', data.message || 'تم حفظ إعدادات السيو بنجاح.');
+      setNotice('settings-alert', data.message || 'ØªÙ… Ø­ÙØ¸ Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„Ø³ÙŠÙˆ Ø¨Ù†Ø¬Ø§Ø­.');
     } catch (error) {
       setNotice('settings-alert', error.message, 'error');
+    }
+  }
+
+  function setSitemapAlert(type, message) {
+    const root = document.getElementById('sitemap-alert');
+    if (!root) return;
+    root.innerHTML = `<div class="notice ${type === 'error' ? 'error' : 'success'}">${escapeHtml(message)}</div>`;
+  }
+
+  async function saveSitemapSettings() {
+    const button = document.getElementById('save-sitemap-settings');
+    const oldText = button?.textContent || 'حفظ روابط السايت ماب';
+    const sitemapUrl = document.getElementById('setting-sitemap-url')?.value.trim() || '';
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'جاري الحفظ...';
+    }
+    setSitemapAlert('success', 'جاري حفظ رابط السايت ماب...');
+
+    try {
+      const data = await apiFetch('/sitemap/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sitemap_url: sitemapUrl }),
+      });
+
+      if (data.settings) {
+        fillSettings(data.settings);
+      } else {
+        const linksCountEl = document.getElementById('setting-sitemap-links-count');
+        if (linksCountEl) linksCountEl.textContent = `${Number(data.links_count || 0)} روابط`;
+
+        const lastFetchedEl = document.getElementById('setting-sitemap-last-fetched');
+        if (lastFetchedEl) {
+          const raw = String(data.last_fetched || '').trim();
+          if (!raw) {
+            lastFetchedEl.textContent = 'لم يتم الجلب بعد';
+          } else {
+            const date = new Date(raw);
+            lastFetchedEl.textContent = Number.isNaN(date.getTime())
+              ? raw
+              : `${date.toLocaleDateString('ar-SA')} ${date.toLocaleTimeString('ar-SA')}`;
+          }
+        }
+      }
+
+      setSitemapAlert('success', data.message || 'تم حفظ رابط السايت ماب بنجاح.');
+    } catch (error) {
+      setSitemapAlert('error', error.message || 'تعذر حفظ رابط السايت ماب.');
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = oldText;
+      }
     }
   }
 
@@ -510,34 +655,64 @@
     try {
       const data = await apiFetch(`/items?type=${encodeURIComponent(type)}`);
       const mapEmpty = {
-        product: 'لا يوجد منتجات مولدة حتى الآن.',
-        brand: 'لا يوجد ماركات مولدة حتى الآن.',
-        category: 'لا يوجد تصنيفات مولدة حتى الآن.',
+        product: 'Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ù…Ù†ØªØ¬Ø§Øª Ù…ÙˆÙ„Ø¯Ø© Ø­ØªÙ‰ Ø§Ù„Ø¢Ù†.',
+        brand: 'Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ù…Ø§Ø±ÙƒØ§Øª Ù…ÙˆÙ„Ø¯Ø© Ø­ØªÙ‰ Ø§Ù„Ø¢Ù†.',
+        category: 'Ù„Ø§ ÙŠÙˆØ¬Ø¯ ØªØµÙ†ÙŠÙØ§Øª Ù…ÙˆÙ„Ø¯Ø© Ø­ØªÙ‰ Ø§Ù„Ø¢Ù†.',
       };
-      renderItems(rootId, data.items || [], mapEmpty[type] || 'لا يوجد عناصر.');
+      renderItems(type, rootId, data.items || [], mapEmpty[type] || 'Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ø¹Ù†Ø§ØµØ±.');
     } catch (error) {
-      renderItems(rootId, [], 'تعذر تحميل البيانات.');
+      renderItems(type, rootId, [], 'ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª.');
     }
   }
 
   async function generateItem(type, keywordId, contextId, rootId) {
+    const alertMap = {
+      product: 'product-alert',
+      brand: 'brand-alert',
+      category: 'category-alert',
+    };
+    const buttonMap = {
+      product: 'generate-product-btn',
+      brand: 'generate-brand-btn',
+      category: 'generate-category-btn',
+    };
+    const buttonText = {
+      product: 'توليد',
+      brand: 'توليد',
+      category: 'توليد',
+    };
+
     const keyword = (document.getElementById(keywordId)?.value || '').trim();
     const context = (document.getElementById(contextId)?.value || '').trim();
+    const alertId = alertMap[type] || 'product-alert';
+    const button = document.getElementById(buttonMap[type] || '');
+    const idleText = buttonText[type] || 'توليد';
+
     if (!keyword) {
-      alert('يرجى إدخال الكلمة المفتاحية أولًا.');
+      setNotice(alertId, 'يرجى إدخال الكلمة المفتاحية أولاً.', 'error');
       return;
     }
 
+    setButtonLoading(button, true, idleText, 'جاري التوليد...');
+    setNotice(alertId, 'جاري التوليد الآن... قد يستغرق هذا بعض الوقت.');
+
     try {
-      await apiFetch('/items/generate', {
+      const data = await apiFetch('/items/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, keyword, context }),
       });
       await loadItems(type, rootId);
       await loadHome();
+      await loadOperations();
+      setNotice(alertId, 'تم التوليد بنجاح. تم فتح النتيجة الجاهزة للنسخ.');
+      if (data && data.item) {
+        openGeneratedResultModal(data.item, type);
+      }
     } catch (error) {
-      alert(error.message);
+      setNotice(alertId, error.message || 'تعذر تنفيذ التوليد.', 'error');
+    } finally {
+      setButtonLoading(button, false, idleText, 'جاري التوليد...');
     }
   }
 
@@ -548,11 +723,11 @@
     const device = document.getElementById('keyword-device')?.value || 'desktop';
 
     if (!keyword) {
-      setNotice('keyword-alert', 'يرجى كتابة كلمة مفتاحية أولًا.', 'error');
+      setNotice('keyword-alert', 'ÙŠØ±Ø¬Ù‰ ÙƒØªØ§Ø¨Ø© ÙƒÙ„Ù…Ø© Ù…ÙØªØ§Ø­ÙŠØ© Ø£ÙˆÙ„Ù‹Ø§.', 'error');
       return;
     }
 
-    setNotice('keyword-alert', 'جاري تحليل الكلمة المفتاحية...');
+    setNotice('keyword-alert', 'Ø¬Ø§Ø±ÙŠ ØªØ­Ù„ÙŠÙ„ Ø§Ù„ÙƒÙ„Ù…Ø© Ø§Ù„Ù…ÙØªØ§Ø­ÙŠØ©...');
     try {
       const data = await apiFetch('/keywords/research', {
         method: 'POST',
@@ -563,7 +738,8 @@
       renderKeywordResults(state.keywordLastResult);
       await loadKeywordHistory();
       await loadHome();
-      setNotice('keyword-alert', 'تم تحليل الكلمة المفتاحية بنجاح.');
+      await loadOperations();
+      setNotice('keyword-alert', 'ØªÙ… ØªØ­Ù„ÙŠÙ„ Ø§Ù„ÙƒÙ„Ù…Ø© Ø§Ù„Ù…ÙØªØ§Ø­ÙŠØ© Ø¨Ù†Ø¬Ø§Ø­.');
     } catch (error) {
       setNotice('keyword-alert', error.message, 'error');
     }
@@ -602,11 +778,11 @@
     const device = document.getElementById('domain-seo-device')?.value || 'desktop';
 
     if (!domain) {
-      setNotice('domain-seo-alert', 'يرجى إدخال الدومين أولًا.', 'error');
+      setNotice('domain-seo-alert', 'ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ Ø§Ù„Ø¯ÙˆÙ…ÙŠÙ† Ø£ÙˆÙ„Ù‹Ø§.', 'error');
       return;
     }
 
-    setNotice('domain-seo-alert', 'جاري حفظ بيانات الدومين...');
+    setNotice('domain-seo-alert', 'Ø¬Ø§Ø±ÙŠ Ø­ÙØ¸ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¯ÙˆÙ…ÙŠÙ†...');
     try {
       const data = await apiFetch('/domain-seo/save', {
         method: 'POST',
@@ -615,7 +791,7 @@
       });
       state.domainSeo = data.domain_seo || null;
       renderDomainResults(state.domainSeo);
-      setNotice('domain-seo-alert', 'تم حفظ الدومين بنجاح.');
+      setNotice('domain-seo-alert', 'ØªÙ… Ø­ÙØ¸ Ø§Ù„Ø¯ÙˆÙ…ÙŠÙ† Ø¨Ù†Ø¬Ø§Ø­.');
     } catch (error) {
       setNotice('domain-seo-alert', error.message, 'error');
     }
@@ -625,11 +801,11 @@
     const domain = (document.getElementById('domain-seo-domain')?.value || '').trim();
     const device = document.getElementById('domain-seo-device')?.value || 'desktop';
     if (!domain) {
-      setNotice('domain-seo-alert', 'يرجى إدخال الدومين أولًا.', 'error');
+      setNotice('domain-seo-alert', 'ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ Ø§Ù„Ø¯ÙˆÙ…ÙŠÙ† Ø£ÙˆÙ„Ù‹Ø§.', 'error');
       return;
     }
 
-    setNotice('domain-seo-alert', 'جاري تحديث بيانات الدومين...');
+    setNotice('domain-seo-alert', 'Ø¬Ø§Ø±ÙŠ ØªØ­Ø¯ÙŠØ« Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¯ÙˆÙ…ÙŠÙ†...');
     try {
       const data = await apiFetch('/domain-seo/refresh', {
         method: 'POST',
@@ -640,7 +816,8 @@
       renderDomainResults(state.domainSeo);
       await loadDomainHistory();
       await loadHome();
-      setNotice('domain-seo-alert', 'تم تحديث بيانات الدومين بنجاح.');
+      await loadOperations();
+      setNotice('domain-seo-alert', 'ØªÙ… ØªØ­Ø¯ÙŠØ« Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¯ÙˆÙ…ÙŠÙ† Ø¨Ù†Ø¬Ø§Ø­.');
     } catch (error) {
       setNotice('domain-seo-alert', error.message, 'error');
     }
@@ -670,7 +847,37 @@
       button.addEventListener('click', () => showSection(button.dataset.sectionTarget || 'home'));
     });
 
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+
+      const openButton = target.closest('[data-open-generated-item]');
+      if (openButton instanceof HTMLElement) {
+        const id = Number(openButton.getAttribute('data-open-generated-item') || 0);
+        const type = openButton.getAttribute('data-open-generated-type') || 'product';
+        const items = Array.isArray(state.generatedItems[type]) ? state.generatedItems[type] : [];
+        const found = items.find((row) => Number(row.id || 0) === id);
+        if (found) {
+          openGeneratedResultModal(found, type);
+        }
+      }
+
+      const copyButton = target.closest('[data-copy-target]');
+      if (copyButton instanceof HTMLElement) {
+        const fieldId = copyButton.getAttribute('data-copy-target') || '';
+        if (fieldId) copyTextFromField(fieldId);
+      }
+    });
+
+    document.getElementById('generated-result-close')?.addEventListener('click', closeGeneratedResultModal);
+    document.getElementById('generated-result-modal')?.addEventListener('click', (event) => {
+      if (event.target === event.currentTarget) {
+        closeGeneratedResultModal();
+      }
+    });
+
     document.getElementById('save-settings-btn')?.addEventListener('click', saveSettings);
+    document.getElementById('save-sitemap-settings')?.addEventListener('click', saveSitemapSettings);
     document.getElementById('generate-product-btn')?.addEventListener('click', () => generateItem('product', 'product-keyword', 'product-context', 'products-list'));
     document.getElementById('generate-brand-btn')?.addEventListener('click', () => generateItem('brand', 'brand-keyword', 'brand-context', 'brands-list'));
     document.getElementById('generate-category-btn')?.addEventListener('click', () => generateItem('category', 'category-keyword', 'category-context', 'categories-list'));
@@ -707,3 +914,4 @@
   loadDomainHistory();
   renderKeywordResults(null);
 })();
+
