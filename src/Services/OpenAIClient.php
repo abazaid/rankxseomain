@@ -58,6 +58,15 @@ final class OpenAIClient
 
         $model = Config::get('OPENAI_MODEL', 'gpt-5-mini');
         $reasoningEffort = Config::get('OPENAI_REASONING_EFFORT', 'low');
+        $hasCompetitorInsights = is_array($product['competitor_insights'] ?? null)
+            && (array) $product['competitor_insights'] !== [];
+        if ($hasCompetitorInsights) {
+            $effort = strtolower(trim((string) $reasoningEffort));
+            // Competitor mode needs deeper reasoning to produce a clear quality delta.
+            if (in_array($effort, ['low', 'minimal'], true)) {
+                $reasoningEffort = 'medium';
+            }
+        }
         $mode = in_array($mode, ['description', 'seo', 'all'], true) ? $mode : 'all';
 
         $response = $this->httpClient->post(self::API_BASE . '/responses', [
@@ -755,6 +764,7 @@ Competitor mode (when competitor_insights is provided):
                             . $this->buildInstructionBlock('Meta Description Rules', $metaDescriptionInstructions)
                             . $this->buildInstructionBlock('SEO Page URL Rules', $seoPageUrlInstructions)
                             . $this->buildInstructionBlock('Competitor Analysis Guidance', $this->buildCompetitorGuidanceBlock($product))
+                            . $this->buildInstructionBlock('Competitor Value Gap Requirements', $this->buildCompetitorValueGapRequirements($product))
                             . $this->buildInstructionBlock('Competitor Analysis Input', $this->buildCompetitorInputBlock($product))
                             . "\nProduct Data:\n" . json_encode($productSummary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
                     ],
@@ -820,6 +830,26 @@ Competitor mode (when competitor_insights is provided):
             . "ركز على الفائدة العملية التي تساعد المستخدم على قرار الشراء.\n"
             . "حسّن Meta Title وMeta Description بناءً على المقارنة مع نتائج المنافسين.\n"
             . "الهدف: محتوى موثوق، مفيد، أقوى من السوق، ويحافظ على هوية المتجر.";
+    }
+
+    private function buildCompetitorValueGapRequirements(array $product): string
+    {
+        $insights = is_array($product['competitor_insights'] ?? null) ? (array) $product['competitor_insights'] : [];
+        if ($insights === []) {
+            return '';
+        }
+
+        return "When competitor insights are present, your output must be noticeably stronger than normal mode.\n"
+            . "MANDATORY QUALITY DELTA:\n"
+            . "1) Add deeper buyer-help value: selection criteria, suitability guidance, and practical caveats.\n"
+            . "2) Cover at least 3 high-intent gaps inferred from competitor titles/descriptions/headings.\n"
+            . "3) Build a richer structure: useful H2/H3 hierarchy and clear section transitions.\n"
+            . "4) Create sharper metadata that can outperform competitor snippets in clarity and CTR intent.\n"
+            . "5) No generic filler. Every section must add concrete value tied to this exact product and merchant context.\n"
+            . "6) If competitor data is noisy, still produce a stronger expert version using market intent + merchant instructions.\n"
+            . "7) Keep tone human and natural, not templated; avoid repetitive phrasing and keyword stuffing.\n"
+            . "8) Include a dedicated H2 section that clearly explains: why this page adds more value than typical market pages.\n"
+            . "9) Include a dedicated H2 section for practical buying decision guidance (who should buy / who should skip).";
     }
 
     private function buildCompetitorInputBlock(array $product): string
